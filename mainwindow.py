@@ -24,6 +24,7 @@ class MainWindow(tkinter.Tk):
         self.mapPanelSize = 800 ### TODO change this to deal with different screen res
         self.armLabelRadius = 15
         self.fontsize = 10
+        self.mapPanelHasFocus = False
         f = tkinter.font.Font(family='Helvetica', size=16, weight=tkinter.font.BOLD)
 
         tkinter.Label(self, text="Job Details", font=f, fg=self.tracsisBlue).grid(row=0, column=0)
@@ -92,23 +93,16 @@ class MainWindow(tkinter.Tk):
         self.mapPanel.bind("<Double-Button-1>",self.add_arm_icon)
         self.mapPanel.bind("<Button-1>",self.on_press_to_move)
         self.mapPanel.bind("<ButtonRelease>",self.onReleaseToMove)
+        print("binding left and right")
         self.bind("<Left>",self.decrement_map)
         self.bind("<Right>", self.increment_map)
         self.mapPanel.bind("<Enter>",self.mouse_over_map_panel)
         self.mapPanel.bind("<Leave>",self.mouse_leave_map_panel)
 
-        #self.focus_set()
-        #self.update()
-
-        #self.siteDetails = projectmanager.get_all_site_details()
-
-
         self.load_map_panel_map(self.currentSite["Site Name"])
         self.load_overview_map()
         self.currentTag = ""
         self.dragInfo = {}
-        #self.focus_set()
-        #self.update()
 
 
     ##########################################################################################################################
@@ -117,19 +111,24 @@ class MainWindow(tkinter.Tk):
     ###
 
 
-
     def mouse_over_map_panel(self,event):
         print("mouse over")
+        #self.mapPanel.config(highlightbackground="red")
+        self.mapPanelHasFocus = True
+        self.mapPanel.focus_set()
+
 
     def mouse_leave_map_panel(self,event):
         print("mouse left")
+        #self.mapPanel.config(highlightbackground="grey")
+        self.mapPanelHasFocus = False
 
     def return_clicked(self,event):
         print("ohohowoeroiwj")
 
     #######################################################################################################################
     ###
-    ###  methods to deal with adding, deleting and editing vehicle classes
+    ###  Functions to deal with adding, deleting and editing vehicle classes
     ###
 
     def spawn_edit_window(self,className = "",desc = "",pcu = ""):
@@ -246,7 +245,7 @@ class MainWindow(tkinter.Tk):
         pass
 
     def increment_map(self,event):
-        print("here 1")
+        print("pressed right arrow")
         self.currentSite = projectmanager.load_next_site(self.currentSite["Site Name"])
         self.mapPanel.delete(tkinter.ALL)
         self.load_map_panel_map(self.currentSite["Site Name"])
@@ -261,7 +260,7 @@ class MainWindow(tkinter.Tk):
             self.armList.append(key)
 
     def decrement_map(self,event):
-        print("here")
+        print("pressed left arrow")
         self.currentSite = projectmanager.load_previous_site(self.currentSite["Site Name"])
         self.mapPanel.delete(tkinter.ALL)
         self.load_map_panel_map(self.currentSite["Site Name"])
@@ -288,7 +287,7 @@ class MainWindow(tkinter.Tk):
     def load_overview_panel_map(self):
         pass
 
-    ######################################################################################################
+    ####################################################################################################
     ###
     ### Functions to deal with adding, dragging, dropping and adjusting any icons etc
     ### that we have added to a particular map
@@ -308,6 +307,7 @@ class MainWindow(tkinter.Tk):
         self.mapPanel.bind("<Motion>",self.draw_arm_line)
         self.unbind_all("<BackSpace>")
         self.unbind_all("<Delete>")
+        print("unbinding left and right in add arm icon")
         self.unbind("<Left>")
         self.unbind("<Right>")
         print("unbopiunnd")
@@ -327,15 +327,16 @@ class MainWindow(tkinter.Tk):
         self.mapPanel.create_line(lineCoords, fill="red", width=3, tags=(self.currentTag, "line"))
 
     def delete_most_recent_arm(self,event):
-        print("here")
-        if self.armList == []:
-            return
-        armName = (self.armList.pop(-1))
-        self.mapPanel.delete(armName)
-        projectmanager.delete_arm_from_site(self.currentSite["Site Name"],armName)
-        projectmanager.decrement_arm_label()
+        if self.mapPanelHasFocus:
+            if self.armList == []:
+                return
+            armName = (self.armList.pop(-1))
+            self.mapPanel.delete(armName)
+            projectmanager.delete_arm_from_site(self.currentSite["Site Name"],armName)
+            projectmanager.decrement_arm_label()
 
     def draw_arm_line(self,event):
+        print("unbinding left and right in draw arm line")
         self.unbind("<Left>")
         self.unbind("<Right>")
         winX = event.x - self.mapPanel.canvasx(0)
@@ -380,6 +381,7 @@ class MainWindow(tkinter.Tk):
         self.mapPanel.unbind("<Motion>")
         self.mapPanel.bind("<Double-Button-1>", self.add_arm_icon)
         self.mapPanel.bind("<Button-1>", self.on_press_to_move)
+        print("binding left and right in finish arm line")
         self.bind("<Left>", self.decrement_map)
         self.bind("<Right>", self.increment_map)
         self.mapPanel.itemconfigure(self.armLine,fill = "red")
@@ -440,6 +442,7 @@ class MainWindow(tkinter.Tk):
         allwidgetsWithTag = self.mapPanel.find_withtag(tags[0])
         print("allwidgets with tag are",allwidgetsWithTag)
         print(tags)
+        print("unbinding left and right in on press to move")
         self.unbind("<Left>")
         self.unbind("<Right>")
         if "line" in (tags):
@@ -448,10 +451,7 @@ class MainWindow(tkinter.Tk):
             self.mapPanel.bind("<Motion>", self.draw_arm_line)
             self.mapPanel.bind("<Button-1>", self.finish_arm_line)
             self.mapPanel.unbind_all("<ButtonRelease>")
-            self.unbind("<Left>")
-            self.unbind("<Right>")
-            self.update()
-            #self.mapPanel.itemconfigure(allwidgetsWithTag[1], fill="blue")
+
         else:
             if "map" in tags:
                 print("clicked on the map")
@@ -459,9 +459,6 @@ class MainWindow(tkinter.Tk):
                 return
             else:
                 print("clicked on a circle")
-                self.unbind("<Left>")
-                self.unbind("<Right>")
-                self.update()
                 self.mapPanel.bind("<B1-Motion>", self.onMovement)
                 self.mapPanel.bind("<ButtonRelease>", self.onReleaseToMove)
                 self.mapPanel.itemconfigure(allwidgetsWithTag[0], outline="blue")
@@ -472,12 +469,13 @@ class MainWindow(tkinter.Tk):
         self.mapPanel.itemconfigure(allwidgetsWithTag[2], fill="blue")
 
     def onReleaseToMove(self, event):  # reset data on release
-
+        print("released mouse")
         if self.dragInfo["tag"] == -1:
             #print("binding")
-            #self.bind("<Left>", self.decrement_map)
-            #self.bind("<Right>", self.increment_map)
+            self.bind("<Left>", self.decrement_map)
+            self.bind("<Right>", self.increment_map)
             return
+        print("blah")
         winX = event.x - self.mapPanel.canvasx(0)
         winY = event.y - self.mapPanel.canvasy(0)
         print("in releasetomove",winX,winY)
@@ -494,6 +492,7 @@ class MainWindow(tkinter.Tk):
 
         self.mapPanel.unbind("<B1-Motion>")
         self.mapPanel.unbind("<ButtonRelease>")
+        print("binding left and right in onrelease to move")
         self.bind("<Left>", self.decrement_map)
         self.bind("<Right>", self.increment_map)
         #projectmanager.edit_arm(self.currentSite["Site Name"], self.currentTag, winX, winY)

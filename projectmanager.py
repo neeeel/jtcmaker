@@ -7,6 +7,7 @@ import openpyxl
 import os
 import xlwt
 from openpyxl.chart import LineChart,PieChart,BarChart
+import math
 
 outline = 3 ## witdth of line to draw circles on the map
 siteDetails = None
@@ -38,7 +39,8 @@ def change_site_zoom(site,value):
     else:
         sites[site]["zoom"]-=1
     print("new zoom of site", site, "is", sites[site]["zoom"])
-    map = mapmanager.load_high_def_map_with_labels(sites[site]["coords"][0], sites[site]["coords"][1], sites[site]["zoom"])
+    print("site is ",sites[site])
+    map = mapmanager.load_high_def_map_with_labels(sites[site]["latlon"][0], sites[site]["latlon"][1], sites[site]["zoom"])
     map.save(str(sites[site]["Site Name"]) + ".png")
 
 
@@ -131,6 +133,7 @@ def load_project():
         siteNumber = site[0].lower().replace("site","")
         sites[site[0]]["Arms"] ={}
         sites[site[0]]["zoom"] = 20
+        sites[site[0]]["latlon"] = (site[1],site[2])
         sites[site[0]]["coords"] = mapmanager.get_coords(overview_map_details[1],(site[1],site[2]),overview_map_details[2],size=1280)
         x = sites[site[0]]["coords"][0]
         y = sites[site[0]]["coords"][1]
@@ -210,8 +213,8 @@ def export_to_excel(jobDetails):
 
     points = get_all_site_coords()
     overview_map_details = mapmanager.load_overview_map(points)
-    overview_map_details[0].save("overview_nomarkers.png")
-    img2 = Image.open("overview_nomarkers.png")
+    #overview_map_details[0].save("overview_nomarkers.png")
+    img2 = Image.open("overview.png")
 
     excelMapImage = openpyxl.drawing.image.Image(img2)
     sht.add_image(excelMapImage,"G2")
@@ -237,15 +240,14 @@ def export_to_excel(jobDetails):
             sht.cell(row=row , column=2).value = item["coords"][0]
             sht.cell(row=row , column=3).value = item["coords"][1]
             for label,arm in sorted(item["Arms"].items()):
-
+                angle = arm["orientation"]
                 x,y = arm["coords"]
                 outline = 3  # line thickness
-                #draw.ellipse((x1 - outline, y1 - outline, x2 + outline, y2 + outline), fill=outline_color)
-                #draw.ellipse((x1, y1, x2, y2), fill=background_color)
+
                 drawimage.ellipse([x - 15- outline, y - 15- outline, x + 15+ outline, y + 15+ outline], outline="Black",fill = "black")
                 drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white",fill = "white")
                 drawimage.text((x-6, y-7), text=label,font=fnt, fill="black")
-                angle = arm["orientation"] + 180
+                angle += 180
                 if angle > 360:
                     angle-=360
                 sht.cell(row=row, column=col).value = label + "," + str(angle) + "," + arm["road"] + "," + str(x*excelMapWidth/800) + "," + str(y*excelMapHeight/800)    ### convert coords to fit a 500x500 map
