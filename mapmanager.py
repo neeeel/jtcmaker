@@ -5,10 +5,11 @@ import math
 from math import log, exp, tan, atan, pi, ceil,cos,sin,atan2,sqrt
 import bisect
 import json
+from operator import itemgetter
 
 
 
-
+google_api_key = "AIzaSyC1PWgJ7Pcg2xfXLHJyCospiYI9uALAMss"
 EARTH_RADIUS = 6378137
 EQUATOR_CIRCUMFERENCE = 2 * pi * EARTH_RADIUS
 INITIAL_RESOLUTION = EQUATOR_CIRCUMFERENCE / 256.0
@@ -23,12 +24,16 @@ def __init__(map_height,map_width, zoom, coords):
     map_width = map_width
     zoom = zoom
     center_lat,center_lon = coords
-    print(center_lat,center_lon)
+    #print(center_lat,center_lon)
 
 
 def get_centre_of_points_alternate(points,zoom):
     points = list(map(lambda x: latlontopixels(x, zoom), points))
     #print("points is", points)
+    print("max x is ",max(points,key=itemgetter(0)))
+    print("min x is ", min(points, key=itemgetter(0)))
+    print("max y is ", max(points, key=itemgetter(1)))
+    print("min y is ", min(points, key=itemgetter(1)))
     avs = [sum(y) / len(y) for y in zip(*points)]
     #print("avs are",avs)
     centre = pixelstolatlon(avs[0], avs[1], zoom)
@@ -47,8 +52,10 @@ def get_centre_of_points(points,zoom):
     minX = min(points, key=lambda item: item[0])[0]
     minY = max(points, key=lambda item: item[1])[1]
     print(maxX, minX, maxY, minY)
-    centreX = maxX - ((maxX - minX) * 0.5)
-    centreY = maxY - ((maxY - minY) * 0.5)
+    #centreX = maxX - ((maxX - minX) * 0.5)
+    #centreY = maxY - ((maxY - minY) * 0.5)
+    centreX = (maxX + minX) / 2
+    centreY = (maxY + minY) / 2
     #print("before conversion", centreX, centreY)
     centre = pixelstolatlon(centreX, centreY,14)
     #print("centre is ",centre)
@@ -56,29 +63,33 @@ def get_centre_of_points(points,zoom):
 
 def calculateZoomValueAlternate(points):
     global zoomValues
+    print("points are",points)
     maxX = max(points, key=lambda item: item[0])[0]
     maxY = min(points, key=lambda item: item[1])[1] ### because lons are negative in our location
     minX = min(points, key=lambda item: item[0])[0]
     minY = max(points, key=lambda item: item[1])[1]
     print("max",maxX, maxY, "min",minX, minY)
-    for zoom in range(20,10,-1):
+    avX = (maxX + minX) / 2
+    avY = (maxY + minY) / 2
+    print("other centre is", avX, avY)
+    centre = (avX,avY)
+    print("average centre is",centre)
+    for zoom in range(20,5,-1):
         print("zoom is",zoom)
-        centre = get_centre_of_points(points,zoom)
-        print("centre is",centre)
+        #centre = get_centre_of_points(points,zoom)
+        #print("centre is",centre)
+
         centreAsPixels = latlontopixels(centre,zoom)
-        print(centreAsPixels)
+        #print(centreAsPixels)
         topLeft =(centreAsPixels[0]-280,centreAsPixels[1]+280) ## the coords in pixels of the top left of the map image
-        print(topLeft)
+        #print(topLeft)
         bottomRight = (centreAsPixels[0]+280,centreAsPixels[1]-280) ## the coords in pixels of the bottom right of the map image
-        print(bottomRight)
-        print("extremes are", topLeft, bottomRight)
-        topLeft=pixelstolatlon(topLeft[0],topLeft[1],zoom)
-        bottomRight = pixelstolatlon(bottomRight[0],bottomRight[1],zoom)
-        print("extremes are", topLeft, bottomRight)
-        if minX> bottomRight[0]  and minY < bottomRight[1]  and maxX < topLeft[0] and maxY > topLeft[1]:
+        #print(bottomRight)
+        distBetweenMinAndCentre = pixelDistance(minX, maxY, centre[0], centre[1], zoom)
+        distBetweenMaxAndCentre = pixelDistance(maxX, minY, centre[0], centre[1], zoom)
+        print("dists are",distBetweenMaxAndCentre,distBetweenMinAndCentre)
+        if distBetweenMinAndCentre[2] <300 and distBetweenMaxAndCentre[2] < 300 :
             break
-    if zoom ==20:
-        zoom-=1
     return zoom
 
 def calculateZoomValue(points):
@@ -138,6 +149,21 @@ def pixelstolatlon(px, py, zoom):
     lon = (mx / ORIGIN_SHIFT) * 180.0
     return lat, lon
 
+
+def pixelDistance(lat1,lon1,lat2,lon2,zoom):
+    ###
+    ### takes 2 lat/lons, and a zoom level, and calculates the distance in pixels between then given the zoom value
+    ###
+    ### returns (xdiff,ydiff,dist)
+    ###
+
+    x1,y1 = latlontopixels((lat1,lon1),zoom)
+    x2,y2 = latlontopixels((lat2,lon2),zoom)
+    #print("xdiff is",x1-x2,"ydiff is ",y1-y2)
+    print(math.sqrt(math.pow(x1-x2,2) + math.pow(y1-y2,2)),21-zoom)
+    return (x2-x1,-(y2-y1),int(math.sqrt(math.pow(x1-x2,2) + math.pow(y1-y2,2)))) #'>> (21-zoom)
+
+
 def get_nearest_site(x,y):
     pass
 
@@ -176,7 +202,7 @@ def get_map_with_path(self,tps,path):
     for p in path[::step]:
         pathString+= str(p[0]) + "," + str(p[1]) + "%7C"
     pathString += str(path[-1][0]) + "," + str(path[-1][1])
-    url = "http://maps.googleapis.com/maps/api/staticmap?&size=" + str(self.map_width) + "x" + str(self.map_height) + markers + pathString + "&key=AIzaSyAQl_6HX3wWlZRpG96XDhdDWZ07_3R6Df4"
+    url = "http://maps.googleapis.com/maps/api/staticmap?&size=" + str(self.map_width) + "x" + str(self.map_height) + markers + pathString + "&key=AIzaSyC1PWgJ7Pcg2xfXLHJyCospiYI9uALAMss"
     print("url for route map is",url)
     buffer = urllib.request.urlopen(url)
     image = Image.open(buffer).convert('RGB')
@@ -187,28 +213,28 @@ def change_zoom(self,val):
     return self.load_map(self.center_lat, self.center_lon)
 
 def load_map_without_labels(lat,lon,zoom):
-    url = "http://maps.googleapis.com/maps/api/staticmap?style=element:labels|visibility:off&zoom=" + str(zoom) + "&center="+ str(lat) + "," + str(lon) + "&size=640x640&key=AIzaSyAQl_6HX3wWlZRpG96XDhdDWZ07_3R6Df4"
+    url = "http://maps.googleapis.com/maps/api/staticmap?style=element:labels|visibility:off&zoom=" + str(zoom) + "&center="+ str(lat) + "," + str(lon) + "&size=640x640&key=AIzaSyC1PWgJ7Pcg2xfXLHJyCospiYI9uALAMss"
     print(url)
     buffer = urllib.request.urlopen(url)
     unlabeledMap = Image.open(buffer)#.convert('RGB')
     return unlabeledMap
 
 def load_high_def_map_without_labels(lat,lon,zoom):
-    url = "http://maps.googleapis.com/maps/api/staticmap?style=element:labels|visibility:off&zoom=" + str(zoom) + "&center="+ str(lat) + "," + str(lon) + "&size=640x640&scale=2&key=AIzaSyAQl_6HX3wWlZRpG96XDhdDWZ07_3R6Df4"
+    url = "http://maps.googleapis.com/maps/api/staticmap?style=element:labels|visibility:off&zoom=" + str(zoom) + "&center="+ str(lat) + "," + str(lon) + "&size=640x640&scale=2&key=AIzaSyC1PWgJ7Pcg2xfXLHJyCospiYI9uALAMss"
     print(url)
     buffer = urllib.request.urlopen(url)
     unlabeledMap = Image.open(buffer)#.convert('RGB')
     return unlabeledMap
 
 def load_map_with_labels(lat,lon,zoom):
-    url = "http://maps.googleapis.com/maps/api/staticmap?center=" + str(lat) + "," + str(lon) + "&zoom=" + str(zoom) + "&size=640x640&key=AIzaSyAQl_6HX3wWlZRpG96XDhdDWZ07_3R6Df4"
+    url = "http://maps.googleapis.com/maps/api/staticmap?center=" + str(lat) + "," + str(lon) + "&zoom=" + str(zoom) + "&size=640x640&key=AIzaSyC1PWgJ7Pcg2xfXLHJyCospiYI9uALAMss"
     print(url)
     buffer = urllib.request.urlopen(url)
     image = Image.open(buffer)#.convert('RGB')
     return image
 
 def load_high_def_map_with_labels(lat,lon,zoom):
-    url = "http://maps.googleapis.com/maps/api/staticmap?center=" + str(lat) + "," + str(lon) + "&zoom=" + str(zoom) + "&size=640x640&scale=2&key=AIzaSyAQl_6HX3wWlZRpG96XDhdDWZ07_3R6Df4"
+    url = "http://maps.googleapis.com/maps/api/staticmap?center=" + str(lat) + "," + str(lon) + "&zoom=" + str(zoom) + "&size=640x640&scale=2&key=AIzaSyC1PWgJ7Pcg2xfXLHJyCospiYI9uALAMss"
     print(url)
     buffer = urllib.request.urlopen(url)
     image = Image.open(buffer)#.convert('RGB')
@@ -219,7 +245,7 @@ def load_map_with_labels_and_markers(lat,lon,zoom,points):
     for i, tp in enumerate(points):
         markers += "&markers=color:blue%7C" + str(tp[0]) + "," + str(tp[1])
     url = "http://maps.googleapis.com/maps/api/staticmap?center=" + str(lat) + "," + str(lon) + "&zoom=" + str(
-        zoom) + markers +  "&size=640x640&key=AIzaSyAQl_6HX3wWlZRpG96XDhdDWZ07_3R6Df4"
+        zoom) + markers +  "&size=640x640&key=AIzaSyC1PWgJ7Pcg2xfXLHJyCospiYI9uALAMss"
     print(url)
     buffer = urllib.request.urlopen(url)
     image = Image.open(buffer)  # .convert('RGB')
@@ -230,7 +256,7 @@ def load_high_def_map_with_labels_and_markers(lat,lon,zoom,points):
     for i, tp in enumerate(points):
         markers += "&markers=color:blue%7C" + str(tp[0]) + "," + str(tp[1])
     url = "http://maps.googleapis.com/maps/api/staticmap?center=" + str(lat) + "," + str(lon) + "&scale=2&zoom=" + str(
-        zoom) + markers +  "&size=640x640&key=AIzaSyAQl_6HX3wWlZRpG96XDhdDWZ07_3R6Df4"
+        zoom) + markers +  "&size=640x640&key=AIzaSyC1PWgJ7Pcg2xfXLHJyCospiYI9uALAMss"
     print(url)
     buffer = urllib.request.urlopen(url)
     image = Image.open(buffer)  # .convert('RGB')
@@ -327,9 +353,14 @@ def getDist(p1,p2):
     ydiff  = abs(y1-y)
     return math.sqrt(xdiff**2 + ydiff**2)
 
-x,y = (300,270)
-xdiff,ydiff = x - 320,y - 320
-centre = (55.90807, -3.4939)
-centreAsPixels = latlontopixels(centre,14)
-newpos = pixelstolatlon(centreAsPixels[0]-xdiff,centreAsPixels[1]-ydiff,14)
-print(newpos)
+
+points = [[	53.39303,-6.39367],[53.39236,-6.39286],[53.39221,-6.39262]]
+#centre = get_centre_of_points(points,14)
+#print("centre is--",centre)
+#zoom = calculateZoomValueAlternate(points)
+#print(zoom)
+#centre = get_centre_of_points(points,zoom)
+#print("centre is--",centre)
+
+points = [[55.952282, -3.462165],[55.952241, -3.462071]]
+print(pixelDistance(points[0][0],points[0][1],points[1][0],points[1][1],16))

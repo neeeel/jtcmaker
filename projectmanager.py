@@ -2,12 +2,13 @@ from tkinter import filedialog
 from PIL import Image,ImageDraw,ImageTk,ImageFont
 import mapmanager
 import pandas as pd
-from tkinter import filedialog
+from tkinter import filedialog,messagebox
 import openpyxl
 import os
 import xlwt
 from openpyxl.chart import LineChart,PieChart,BarChart
 import math
+import datetime
 
 outline = 3 ## witdth of line to draw circles on the map
 siteDetails = None
@@ -15,9 +16,39 @@ siteDetails = None
 excelMapWidth = 576.5295 ### the size of the map in the excel template sheet
 excelMapHeight = 576.5295
 sites = {}
+groups = {}
+groupCount = 1
 current_label = 64
 individual_site_zoom_value = 20
 overview_map_details = []
+jobNumber = ""
+jobName = ""
+surveyDate= ""
+timePeriods  = ""
+
+def add_group():
+    global groupCount, groups
+    groupName = "Group " + str(groupCount)
+    groupCount+=1
+    groups[groupName] = {}
+    groups[groupName]["siteList"] = []
+    groups[groupName]["coords"] = []
+    return groupName
+
+def delete_group(groupName):
+    global groups
+    del groups[groupName]
+
+def add_site_to_group(groupName,site):
+    global groups
+    groups[groupName]["siteList"].append(site)
+
+def delete_site_from_group(groupName,site):
+    global groups
+    groups[groupName]["siteList"].remove(site)
+
+def get_groups():
+    return groups
 
 def load_sites():
     pass
@@ -33,16 +64,41 @@ def decrement_arm_label():
     current_label-=1
 
 def change_site_zoom(site,value):
-    print("current zoom of site",site,"is",sites[site]["zoom"])
     if value == "+":
         sites[site]["zoom"] += 1
     else:
         sites[site]["zoom"]-=1
-    print("new zoom of site", site, "is", sites[site]["zoom"])
-    print("site is ",sites[site])
+    map = mapmanager.load_high_def_map_with_labels(sites[site]["latlon"][0], sites[site]["latlon"][1], sites[site]["zoom"])
+    map.save(str(sites[site]["Site Name"]) + ".png")
+    armlist = [k for k, item in sites[site]["Arms"].items()]
+    for arm in armlist:
+        delete_arm_from_site(sites[site]["Site Name"], arm)
+
+def change_site_centre_point(site,x,y):
+    ###
+    ### x,y are the deltas that the map has changed by
+    ###
+    global siteDetails
+    print("changing site centre point")
+    currentCentre = sites[site]["latlon"]
+    zoom = sites[site]["zoom"]
+    newCentre = mapmanager.get_lat_lon_from_x_y(currentCentre,400-x,400-y,zoom)
+    print("new centre is ",newCentre)
+    sites[site]["latlon"] = newCentre
+    print(siteDetails)
+    siteDetails.loc[siteDetails["Site Name"] == site,"Lat"] = newCentre[0]
+    siteDetails.loc[siteDetails["Site Name"] == site,"Lon"] = newCentre[1]
+    print("after change of site coords","-"*100)
+    print(siteDetails)
     map = mapmanager.load_high_def_map_with_labels(sites[site]["latlon"][0], sites[site]["latlon"][1], sites[site]["zoom"])
     map.save(str(sites[site]["Site Name"]) + ".png")
 
+    armlist = [k for k, item in sites[site]["Arms"].items()]
+    for arm in armlist:
+        delete_arm_from_site(sites[site]["Site Name"],arm)
+
+def change_site_group(site,group):
+    sites[site]["group"] = group
 
 def add_arm_to_site(siteName,x,y):
     global current_label,siteDetails,sites
@@ -66,11 +122,13 @@ def delete_arm_from_site(siteName,armName):
 def edit_arm(siteName,armName,x,y):
     global siteDetails, sites
     site = sites.get(siteName, {})
+    if site == {}:
+        site["zoom"] = individual_site_zoom_value
     print("site is", site)
     site["coords"] = []
     row = siteDetails[siteDetails["Site Name"] == siteName]
     siteLatLon = row.values.tolist()[0][1:]
-    armLatLon = mapmanager.get_lat_lon_from_x_y(siteLatLon, x, y, individual_site_zoom_value)
+    armLatLon = mapmanager.get_lat_lon_from_x_y(siteLatLon, x, y, site["zoom"])
     site["coords"]=mapmanager.get_coords(overview_map_details[1],siteLatLon,overview_map_details[2],size=1280)
     print("location for arm is", armLatLon)
     print("road for arm is", mapmanager.get_road_name(armLatLon[0], armLatLon[1]))
@@ -103,22 +161,56 @@ def get_site_map(siteName):
 def get_overview_map():
     try:
         img = Image.open("overview.png")
-        img = img.resize((400, 400), Image.ANTIALIAS)
-        return ImageTk.PhotoImage(img)
+        img = img.resize((800, 800), Image.ANTIALIAS)
+        coordsList = [(site[0],mapmanager.get_coords(overview_map_details[1],(site[1],site[2]),overview_map_details[2],size=800)) for site in get_all_site_details()]
+        print("Coord list is",coordsList)
+        return [ImageTk.PhotoImage(img),coordsList]
     except Exception as e:
-        return None
+        return [None,[]]
+
+def get_nearest_site_on_overview_map(x,y):
+    pass
+
+def get_project_details():
+    return [jobName,jobNumber,surveyDate,timePeriods]
 
 def import_site_details_from_excel():
-    global siteDetails
+    global siteDetails,jobName,jobNumber,surveyDate,timePeriods
     fileList = list(filedialog.askopenfilenames(initialdir=dir))
     if fileList == []:
         return
     for f in fileList:
         print(f)
-        siteDetails = pd.read_excel(f)
+        siteDetails = pd.read_excel(f,parse_cols=[0,1,2],index_col=None)
+    print(siteDetails)
+
+    siteDetails.dropna(axis=0,inplace=True)
+    siteDetails["Site Name"] = siteDetails["Site Name"].apply(str.title)
+    strJoin = lambda x: ",".join(x.astype(str))
+    wb = openpyxl.load_workbook(f)
+    jobNumber = wb.worksheets[0]["F4"].value
+    jobName = wb.worksheets[0]["F6"].value
+    surveyDate = wb.worksheets[0]["F8"].value
+    print("type of surveyDatei s",type(surveyDate))
+    print(jobNumber)
+    col = 6
+    timeList = []
+    while not wb.worksheets[0].cell(row=16,column=col).value is None:
+        try:
+            t = wb.worksheets[0].cell(row=16,column=col).value
+            timeList.append(t.strftime("%H:%M"))
+            print(wb.worksheets[0].cell(row=16,column=col).value)
+        except Exception as e:
+            messagebox.showinfo(message="there was a problem with one or more times in the project file\n Please check")
+        col+=1
+    if len(timeList) != 0:
+        if len(timeList)%2!=0:
+            timeList = timeList[:-1]
+        timePeriods = ",".join([str(timeList[i]) + "-" + str(timeList[i+1]) for i in range(0,len(timeList),2)])
+    #print(timeList)
 
 def load_project():
-    global siteDetails
+    global siteDetails, groups
     import_site_details_from_excel()
     download_all_individual_site_maps()
     download_overview_map()
@@ -130,6 +222,7 @@ def load_project():
     for site in get_all_site_details():
         sites[site[0]] = {}
         sites[site[0]]["Site Name"] = site[0]
+        sites[site[0]]["group"] = 1
         siteNumber = site[0].lower().replace("site","")
         sites[site[0]]["Arms"] ={}
         sites[site[0]]["zoom"] = 20
@@ -137,13 +230,17 @@ def load_project():
         sites[site[0]]["coords"] = mapmanager.get_coords(overview_map_details[1],(site[1],site[2]),overview_map_details[2],size=1280)
         x = sites[site[0]]["coords"][0]
         y = sites[site[0]]["coords"][1]
-        drawimage.ellipse([x - 15- outline, y - 15- outline, x + 15+ outline, y + 15+ outline], outline="Black",fill = "black")
-        drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white",fill = "white")
-        drawimage.text((x-8, y-9), text=siteNumber,font=fnt, fill="black")
-
+        #drawimage.ellipse([x - 15- outline, y - 15- outline, x + 15+ outline, y + 15+ outline], outline="Black",fill = "black")
+        #drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white",fill = "white")
+        #drawimage.text((x-8, y-9), text=siteNumber,font=fnt, fill="black")
+    siteNameList = [site[0] for site in get_all_site_details()]
+    groups["ALL"] = {}
+    groups["ALL"]["siteList"] = siteNameList
+    groups["ALL"]["coords"] = []
     img2.save("overview.png")
 
     print("Sites are ",sites)
+    print(get_all_site_coords())
     return sites[get_all_site_details()[0][0]]
 
 def load_previous_site(siteName):
@@ -175,24 +272,29 @@ def load_next_site(siteName):
         return sites[siteDetails.iloc[curr].values.tolist()[0]]
 
 def export_to_excel(jobDetails):
-    file = filedialog.askopenfilename()
+    file = filedialog.asksaveasfilename()
     if file == "" or file is None:
         return
-    wb = openpyxl.load_workbook(file,keep_vba=True)
+    wb = openpyxl.load_workbook("Flow Automation Template v2.0.xlsm",keep_vba=True)
 
     sht = wb.get_sheet_by_name("Maps")
 
-    img = Image.open("tracsis Logo.jpg")
-    imgSmall = img.resize((227, 72), Image.ANTIALIAS)
+    img = Image.open("Tracsis logo.png")
+    imgSmall = img #.resize((247, 78), Image.ANTIALIAS)
     excelImageSmall = openpyxl.drawing.image.Image(imgSmall)
     sht.add_image(excelImageSmall, "AA1")
 
-    sht = wb.get_sheet_by_name("Dashboard")
+    img = Image.open("Tracsis Icon.png")
+    imgSmall = img #.resize((25, 25), Image.ANTIALIAS)
+    excelImageSmall = openpyxl.drawing.image.Image(imgSmall)
+    sht.add_image(excelImageSmall, "AA2")
 
-    c1 = LineChart()
-    c1.title = "Volume Chart"
-    c1.style = 13
-    sht.add_chart(c1,"B5")
+    img = Image.open("Tracsis-banner.png")
+    imgSmall = img  # .resize((25, 25), Image.ANTIALIAS)
+    excelImageSmall = openpyxl.drawing.image.Image(imgSmall)
+    sht.add_image(excelImageSmall, "AA3")
+
+    sht = wb.get_sheet_by_name("Dashboard")
 
     c1= BarChart()
     c1.title = "Class Ratios"
@@ -203,24 +305,13 @@ def export_to_excel(jobDetails):
     sht.add_chart(c1, "M25")
 
 
-    sht = wb.get_sheet_by_name("Maps")
-    #img = Image.open("tracsis Logo.jpg")
-    #imgSmall = img.resize((227, 72), Image.ANTIALIAS)
-    #excelImageSmall = openpyxl.drawing.image.Image(imgSmall)
-    #sht.add_image(excelImageSmall, "A1")
 
-    ### TODO grouping of sites in case sites are scattered far apart making the overview map difficult to use
-
-    points = get_all_site_coords()
-    overview_map_details = mapmanager.load_overview_map(points)
-    #overview_map_details[0].save("overview_nomarkers.png")
-    img2 = Image.open("overview.png")
-
-    excelMapImage = openpyxl.drawing.image.Image(img2)
-    sht.add_image(excelMapImage,"G2")
     sht = wb.get_sheet_by_name("Data")
     sht.cell(row=2,column=14).value = ",".join(jobDetails["times"])
     sht.cell(row=3, column=14).value = jobDetails["period"]
+    sht.cell(row=4, column=14).value = jobNumber
+    sht.cell(row=5, column=14).value = jobName
+    sht.cell(row=6,column=14).value = surveyDate.strftime("%d/%m/%Y")
     for index,cl in enumerate(jobDetails["classes"]):
         sht.cell(row=index+2, column=50).value = cl
     row = 2
@@ -228,18 +319,33 @@ def export_to_excel(jobDetails):
     fnt = ImageFont.truetype("arial", size=18)
 
     count = 0
-    for key,item in sorted(sites.items()):
+    for key,site in sorted(sites.items(),key=lambda x:int(x[0].replace("Site ","").strip())):
 
+        ###
+        ### check and adjust road names if any are duplicated within a site
+        ###
+        dets = [[k, i["orientation"] + 180, i["road"]] for k, i in site["Arms"].items()]
+        mylist = [item["road"] for key, item in site["Arms"].items()]
+        for road in mylist:
+            matches = [x for x in dets if x[2] == road]
+            if len(matches) > 1:
+                for m in matches:
+                    road = m[2] + "(" + road_orientation(m[1]) + ")"
+                    site["Arms"][m[0]]["road"] = road
+
+        sht = wb.get_sheet_by_name("Maps")
+        sht.cell(row=count+2,column=1).value = key
+        sht.cell(row=count+2,column=13).value = "No relevant observations"
         sht = wb.get_sheet_by_name("Data")
         siteImg = Image.open(key + ".png").convert('RGB')
         siteImg = siteImg.resize((800, 800), Image.ANTIALIAS)
         drawimage = ImageDraw.Draw(siteImg)
-        if len(item["Arms"]) !=0:
+        if len(site["Arms"]) !=0:
             col = 4
             sht.cell(row=row,column=1).value = key
-            sht.cell(row=row , column=2).value = item["coords"][0]
-            sht.cell(row=row , column=3).value = item["coords"][1]
-            for label,arm in sorted(item["Arms"].items()):
+            sht.cell(row=row , column=2).value = str(site["coords"][0]) + "," + str(site["coords"][1])
+            sht.cell(row=row , column=3).value = str(site["latlon"][0]) + "," + str(site["latlon"][1])
+            for label,arm in sorted(site["Arms"].items()):
                 angle = arm["orientation"]
                 x,y = arm["coords"]
                 outline = 3  # line thickness
@@ -248,7 +354,7 @@ def export_to_excel(jobDetails):
                 drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white",fill = "white")
                 drawimage.text((x-6, y-7), text=label,font=fnt, fill="black")
                 angle += 180
-                if angle > 360:
+                if angle >= 360:
                     angle-=360
                 sht.cell(row=row, column=col).value = label + "," + str(angle) + "," + arm["road"] + "," + str(x*excelMapWidth/800) + "," + str(y*excelMapHeight/800)    ### convert coords to fit a 500x500 map
                 #sht.cell(row=row , column=col+1).value = angle
@@ -264,9 +370,68 @@ def export_to_excel(jobDetails):
         excelMapImage = openpyxl.drawing.image.Image(img2)
         sht = wb.get_sheet_by_name("Maps")
         sht.add_image(excelMapImage, "B" + str(2 + count))
+
         count+=1
+
+    count = 0
+    for key,group in sorted(groups.items()):
+        print("key,value",key,group)
+        download_group_map(key)
+        img2 = Image.open(key + ".png")
+        excelMapImage = openpyxl.drawing.image.Image(img2)
+        sht = wb.get_sheet_by_name("Maps")
+        sht.add_image(excelMapImage, "G" + str(2 + count))
+        sht.cell(row=count + 2, column=6).value = key
+
+        sht = wb.get_sheet_by_name("Data")
+        sht.cell(row=count + 100, column= 1).value = key
+        for i,site in enumerate(group["coords"]):
+            armData = []
+            siteName = site[0]
+            siteLatLon = sites[siteName]["latlon"]
+            for armLabel,arm in sorted(sites[siteName]["Arms"].items()):
+                armLatLon = arm["latlon"]
+                pixelDistance = mapmanager.pixelDistance(siteLatLon[0],siteLatLon[1],armLatLon[0],armLatLon[1],group["zoom"])
+                armData.append(armLabel)
+                armData.append(pixelDistance[0])
+                armData.append((pixelDistance[1]))
+            sht.cell(row=count + 100, column=i+2).value = ",".join(map(str,site)) + "," + ",".join(map(str,armData))
+
+        ###
+        ### create the overview map showing the sites in the group in red
+        ### and the other sites in black
+        ###
+
+        img2 = Image.open("overview.png").convert('RGB')
+        drawimage = ImageDraw.Draw(img2)
+        fnt = ImageFont.truetype("arial", size=18)
+        sitesInGroup = group["siteList"]
+        if len(sitesInGroup) > 0:
+            print("sitesingroup",sitesInGroup)
+            siteList = [(site[0], site[1], site[2]) for site in get_all_site_details()]
+            for site in siteList:
+                if site[0] in sitesInGroup:
+                    colour = "red"
+                else:
+                    colour  = "black"
+                x, y = mapmanager.get_coords(overview_map_details[1], (site[1], site[2]), overview_map_details[2], size=1280)
+                drawimage.ellipse([x - 15 - outline, y - 15 - outline, x + 15 + outline, y + 15 + outline], outline=colour,fill=colour)
+                drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white", fill="white")
+                drawimage.text((x - 8, y - 9), text=site[0].split(" ")[1], font=fnt, fill="black")
+            img2.save(key  + "_sites.png")
+            img2 = Image.open(key  + "_sites.png")
+            excelMapImage = openpyxl.drawing.image.Image(img2)
+            sht = wb.get_sheet_by_name("Maps")
+            sht.add_image(excelMapImage, "H" + str(2 + count))
+            count += 1
+
     print("saving")
-    wb.save(filename="TemplateResult.xlsm")
+    try:
+
+        wb.save(filename=file + ".xlsm")
+    except PermissionError as e:
+        messagebox.showinfo(message="file is already open, please close file and retry exporting")
+        return
 
 def get_all_site_coords():
     global siteDetails
@@ -289,12 +454,84 @@ def download_overview_map():
     overview_map_details[0].save("overview.png")
     print("centre of overview map is",overview_map_details[1],"zoom is",overview_map_details[2])
 
-centre = (55.91009503466296, -3.501137500000034)
+def download_group_map(groupName):
+    grpList = groups[groupName]["siteList"]
+    groups[groupName]["coords"] = []
+    print("grplist is",grpList)
+    coordsList = [(site[1],site[2]) for site in get_all_site_details() if site[0] in grpList] ### coordsList is the list of lat/lons for each site in the group
+    print("coordslist is",coordsList)
+    map_details = mapmanager.load_overview_map_without_street_labels(coordsList)
+    groups[groupName]["zoom"] = map_details[2]
+    map_details[0].save(groupName + ".png")
+    img2 = Image.open(groupName + ".png").convert('RGB')
+    drawimage = ImageDraw.Draw(img2)
+    fnt = ImageFont.truetype("arial", size=18)
+    siteList = [(site[0],site[1],site[2]) for site in get_all_site_details() if site[0] in grpList]
+    for site in siteList:
+        x,y = mapmanager.get_coords(map_details[1],(site[1],site[2]),map_details[2],size=1280)
+        groups[groupName]["coords"].append([site[0],x,y])
+        drawimage.ellipse([x - 15- outline, y - 15- outline, x + 15+ outline, y + 15+ outline], outline="Black",fill = "black")
+        drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white",fill = "white")
+        drawimage.text((x-8, y-9), text=site[0].split(" ")[1],font=fnt, fill="black")
+    img2.save(groupName + ".png")
 
-#load_project()
+def road_orientation(angle):
+    if angle > 360:
+        angle-=360
+    if angle>=348.75:
+        return "N"
+    elif angle < 11.25:
+        return "N"
+    elif angle>=11.25 and angle < 33.75:
+        return "NNE"
+    elif angle>=33.75 and angle < 56.25:
+        return "NE"
+    elif angle>=56.25 and angle < 78.75:
+        return "ENE"
+    elif angle>=78.75 and angle < 101.75:
+        return "E"
+    elif angle>=101.75 and angle < 123.75:
+        return "ESE"
+    elif angle>=123.75 and angle < 146.25:
+        return "SE"
+    elif angle>=146.25 and angle < 168.75:
+        return "SSE"
+    elif angle>=168.75 and angle < 191.25:
+        return "S"
+    elif angle>=191.25 and angle < 213.75:
+        return "SSW"
+    elif angle>=213.75 and angle < 236.25:
+        return "SW"
+    elif angle>=236.25 and angle < 258.75:
+        return "WSW"
+    elif angle>=258.75 and angle < 281.25:
+        return "W"
+    elif angle>=281.25 and angle < 303.75:
+        return "WNW"
+    elif angle>=303.75 and angle < 326.25:
+        return "NW"
+    elif angle>=326.25 and angle < 348.75:
+        return "NNW"
+
+#centre = (55.91009503466296, -3.501137500000034)
+
+
 #export_to_excel()
 #print(get_next_site("Site 1"))
 #get_all_individual_site_maps()
 #get_overview_map()
 
 #register_arm_details("Site 1","A",320,320)
+
+#import_site_details_from_excel()
+#exit()
+#
+#load_project()
+#groups = {}
+#groups["testgroup2"] = ["Site 1","Site 2","Site 3"]
+#download_group_map("testgroup2")
+
+#import_site_details_from_excel()
+#print(get_project_details())
+
+#import_site_details_from_excel()
