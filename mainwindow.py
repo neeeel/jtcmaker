@@ -25,6 +25,9 @@ class MainWindow(tkinter.Tk):
         self.armLabelRadius = 15
         self.fontsize = 10
         self.pickedUpLine = False
+        self.mapScale = 1
+        self.topLeftOfImage = [0,0]
+        self.baseMapImage = None
 
         ### set up the menu bar
 
@@ -137,6 +140,9 @@ class MainWindow(tkinter.Tk):
         self.overviewPanel = tkinter.Canvas(self,bg="white",relief=tkinter.RAISED,borderwidth=1)
         self.overviewPanel.bind("<Button-1>",self.overview_map_clicked)
         self.overviewPanel.grid(row = 1,column = 2)
+        self.overviewPanel.bind("<MouseWheel>",self.on_mousewheel)
+
+
         self.addingArmLabel = False
         self.armLineStartingCoords = None
         self.armList = []
@@ -161,7 +167,7 @@ class MainWindow(tkinter.Tk):
 
     ##########################################################################################################################
     ###
-    ### Functions to deal with the overview panel, defining and selecting groups
+    ### Functions to deal with the overview panel, defining and selecting groups,zooming and panning map
     ###
 
     def overview_map_clicked(self,event):
@@ -173,14 +179,78 @@ class MainWindow(tkinter.Tk):
         print("closest site is",tags[0])
         if "site" in tags[0].lower():
             self.add_site_to_group(tags[0])
+        if tags[0] == "map":
+            ### user has clicked map only
+            winX = event.x - self.overviewPanel.canvasx(0)
+            winY = event.y - self.overviewPanel.canvasy(0)
+            print("clicked at", winX, winY)
+            self.dragInfo = {}
+            self.dragInfo["Widget"] = widget
+            self.dragInfo["xCoord"] = winX
+            self.dragInfo["yCoord"] = winY
+            self.dragInfo["tag"] = "map"
+            self.mapClickedCoords = (winX, winY)
+            self.overviewPanel.bind("<B1-Motion>", self.on_overviewpanel_movement)
+            self.overviewPanel.bind("<ButtonRelease-1>", self.on_release_to_move_overview_map)
 
+    def on_overviewpanel_movement(self,event):
+        winX = event.x - self.overviewPanel.canvasx(0)
+        winY = event.y - self.overviewPanel.canvasy(0)
+        # print("mouse is now at", winX, winY)
+        newX = winX - self.dragInfo["xCoord"]
+        newY = winY - self.dragInfo["yCoord"]
+
+        if self.dragInfo["tag"] == "map":
+            for child in self.overviewPanel.find_all():
+                self.overviewPanel.move(child, newX, newY)
+        self.dragInfo["xCoord"] = winX
+        self.dragInfo["yCoord"] = winY
+
+    def on_release_to_move_overview_map(self,event):
+        winX = event.x - self.overviewPanel.canvasx(0)
+        winY = event.y - self.overviewPanel.canvasy(0)
+        print("map was moved", winX - self.mapClickedCoords[0], winY - self.mapClickedCoords[1])
+        self.overviewPanel.unbind("<B1-Motion>")
+        self.overviewPanel.unbind("<ButtonRelease-1>")
+        if winX - self.mapClickedCoords[0] == 0 and winY - self.mapClickedCoords[1] == 0:
+            return
+        if self.mapScale == 1:
+            self.topLeftOfImage = [0, 0]
+        else:
+            self.topLeftOfImage[0] -= (winX - self.mapClickedCoords[0]) * (1280 / self.mapScale) / 800
+            self.topLeftOfImage[1] -= (winY - self.mapClickedCoords[1]) * (1280 / self.mapScale) / 800
+
+        self.draw_overview_site_labels()
+
+    def on_mousewheel(self,event):
+        if self.baseMapImage is None:
+            return
+        iw, ih = self.baseMapImage.size
+        previousCw = iw / self.mapScale
+        self.mapScale += event.delta * 0.5 / 120
+        if self.mapScale <= 1:
+            self.mapScale = 1
+            self.topLeftOfImage = [0,0]
+        else:
+            ###
+            ### diff is the diff in x y given that we have zoomed in ( or out)
+            ### ie, the width of the viewport was previousCw , in the current zoom it is now
+            ### cw
+            ###
+            cw, ch = iw / self.mapScale, ih / self.mapScale
+            diff = previousCw - cw
+            self.topLeftOfImage[0] += int(diff / 2)
+            self.topLeftOfImage[1] += int(diff / 2)
+
+
+        self.draw_overview_site_labels()
 
 
     def mouse_over_map_panel(self,event):
         print("mouse over")
         #self.mapPanel.config(highlightbackground="red")
-        self.mapPanelHasFocus = True
-        self.mapPanel.focus_set()
+        #.mapPanelHasFocus = True
+        #self.mapPanel.focus_set()
 
     def mouse_leave_map_panel(self,event):
         print("mouse left")
@@ -193,7 +263,8 @@ class MainWindow(tkinter.Tk):
     def load_overview_map(self):
         circleRadius = 10
         self.overviewDetails = projectmanager.get_overview_map()
-        self.overviewPanel.create_image(5, 5, image=self.overviewDetails[0], anchor=tkinter.NW, tags=("map",))
+        self.baseMapImage = self.overviewDetails[0]
+        #self.overviewPanel.create_image(5, 5, image=self.overviewDetails[0], anchor=tkinter.NW, tags=("map",))
         self.overviewPanel.configure(width=800, height=800)
         self.groupsTree.delete(*self.groupsTree.get_children())
         for name,grp in sorted(projectmanager.get_groups().items()):
@@ -206,14 +277,36 @@ class MainWindow(tkinter.Tk):
 
 
     def draw_overview_site_labels(self):
+        self.overviewPanel.delete(tkinter.ALL)
+
+        iw, ih = self.baseMapImage.size
+        # calculate crop window size
+        cw, ch = iw / self.mapScale, ih / self.mapScale
+        if cw > iw or ch > ih:
+            cw = iw
+            ch = ih
+            # crop it
+        print("cw,ch",cw,ch)
+        ###
+        ### self.topLeftOfImage is the absolute coords of the displayed part of the map
+        ### eg [100,100] would mean that (0,0) on the map panel would be showing [100,100] of the base map image
+        ###
+        if self.topLeftOfImage[0] < 0:
+            self.topLeftOfImage[0] = 0
+        if self.topLeftOfImage[1] < 0:
+            self.topLeftOfImage[1] = 0
+        if self.topLeftOfImage[0] > 1280 - cw:
+            self.topLeftOfImage[0] = 1280 - cw
+        if self.topLeftOfImage[1] > 1280 - ch:
+            self.topLeftOfImage[1] = 1280 - ch
+        tmp = self.baseMapImage.crop((self.topLeftOfImage[0], self.topLeftOfImage[1],
+                                      self.topLeftOfImage[0] + int(cw), self.topLeftOfImage[1] + int(ch)))
+        # draw
+        self.img = ImageTk.PhotoImage(tmp.resize((800, 800)))
+        self.img_id = self.overviewPanel.create_image(0, 0, image=self.img, anchor=tkinter.NW, tags=("map",))
+
         circleRadius = 10
         colour = "black"
-        for child in self.overviewPanel.find_all():
-            tags = self.overviewPanel.gettags(child)
-            print("tags are", tags)
-            if "site" in tags[0].lower():
-                print("deleteing",child)
-                self.overviewPanel.delete(child)
         if self.groupsTree.selection() == "":
             groupName = "ALL"
         else:
@@ -227,8 +320,19 @@ class MainWindow(tkinter.Tk):
                 colour = "red"
             else:
                 colour = "black"
-            self.overviewPanel.create_oval(coords[0]-circleRadius,coords[1]-circleRadius,coords[0]+circleRadius,coords[1]+circleRadius,width = 3,outline=colour,tags=[str(siteName)])
-            self.overviewPanel.create_text((coords[0],coords[1]),text=siteName.split(" ")[1],tags=[str(siteName)])
+
+            x, y = coords
+            print("before adjustment, coords are",x,y)
+            ### translate point relative to viewport
+            x -= self.topLeftOfImage[0]
+            y -= self.topLeftOfImage[1]
+            ### adjust point to fit the 800x800 display panel
+            x = x * 800 / (1280 / self.mapScale)
+            y = y * 800 / (1280 / self.mapScale)
+            print("after adjustment, coords are", x, y)
+            print("top left of image is",self.topLeftOfImage)
+            self.overviewPanel.create_oval(x-circleRadius,y-circleRadius,x+circleRadius,y+circleRadius,width = 3,outline=colour,tags=[str(siteName)])
+            self.overviewPanel.create_text((x,y),text=siteName.split(" ")[1],tags=[str(siteName)])
             print(self.overviewPanel.find_withtag(siteName))
 
     def display_group(self,event):
@@ -360,6 +464,15 @@ class MainWindow(tkinter.Tk):
                     self.classesTree.item(child,tags=("tree", "odd"))
         except IndexError as e:
             pass
+
+
+    ########################################################################################################################
+    ###
+    ### methods to deal with zooming or dragging the overview map
+    ###
+
+
+
 
     ########################################################################################################################
     ###

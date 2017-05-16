@@ -161,10 +161,10 @@ def get_site_map(siteName):
 def get_overview_map():
     try:
         img = Image.open("overview.png")
-        img = img.resize((800, 800), Image.ANTIALIAS)
-        coordsList = [(site[0],mapmanager.get_coords(overview_map_details[1],(site[1],site[2]),overview_map_details[2],size=800)) for site in get_all_site_details()]
+        #img = img.resize((800, 800), Image.ANTIALIAS)
+        coordsList = [(site[0],mapmanager.get_coords(overview_map_details[1],(site[1],site[2]),overview_map_details[2],size=1280)) for site in get_all_site_details()]
         print("Coord list is",coordsList)
-        return [ImageTk.PhotoImage(img),coordsList]
+        return [img,coordsList]
     except Exception as e:
         return [None,[]]
 
