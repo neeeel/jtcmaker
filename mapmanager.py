@@ -88,7 +88,7 @@ def calculateZoomValueAlternate(points):
         distBetweenMinAndCentre = pixelDistance(minX, maxY, centre[0], centre[1], zoom)
         distBetweenMaxAndCentre = pixelDistance(maxX, minY, centre[0], centre[1], zoom)
         print("dists are",distBetweenMaxAndCentre,distBetweenMinAndCentre)
-        if distBetweenMinAndCentre[2] <300 and distBetweenMaxAndCentre[2] < 300 :
+        if distBetweenMinAndCentre[2] <280 and distBetweenMaxAndCentre[2] < 280 :
             break
     return zoom
 
@@ -183,8 +183,11 @@ def get_lat_lon_from_x_y(centre,x,y,zoom,size = 800):
     ### given that we know the centre of the map is (size/2,size/2) and we know the lat,lon of the centre point, we can calculate
     ### the lat,lon of any other x,y point on the map
     ###
+    print("new coords are",x,y,zoom)
     xdiff, ydiff = x - (size/2), y - (size/2)
+    print("diffs are",xdiff,ydiff)
     centreAsPixels = latlontopixels(centre, zoom)
+    print("centre as pixels is",centreAsPixels)
     newLatLon = pixelstolatlon(centreAsPixels[0] + xdiff, centreAsPixels[1] - ydiff, zoom)
     return newLatLon
 
@@ -233,8 +236,8 @@ def load_map_with_labels(lat,lon,zoom):
     image = Image.open(buffer)#.convert('RGB')
     return image
 
-def load_high_def_map_with_labels(lat,lon,zoom):
-    url = "http://maps.googleapis.com/maps/api/staticmap?center=" + str(lat) + "," + str(lon) + "&zoom=" + str(zoom) + "&size=640x640&scale=2&key=AIzaSyC1PWgJ7Pcg2xfXLHJyCospiYI9uALAMss"
+def load_high_def_map_with_labels(lat,lon,zoom,imageType="roadmap"):
+    url = "http://maps.googleapis.com/maps/api/staticmap?center=" + str(lat) + "," + str(lon) + "&zoom=" + str(zoom) + "&maptype=" + imageType + "&size=640x640&scale=2&key=AIzaSyC1PWgJ7Pcg2xfXLHJyCospiYI9uALAMss"
     print(url)
     buffer = urllib.request.urlopen(url)
     image = Image.open(buffer)#.convert('RGB')
@@ -354,7 +357,7 @@ def getDist(p1,p2):
     return math.sqrt(xdiff**2 + ydiff**2)
 
 
-points = [[	53.39303,-6.39367],[53.39236,-6.39286],[53.39221,-6.39262]]
+points = [[	51.375375,-2.303901],[53.39236,-6.39286],[53.39221,-6.39262]]
 #centre = get_centre_of_points(points,14)
 #print("centre is--",centre)
 #zoom = calculateZoomValueAlternate(points)
@@ -362,5 +365,6 @@ points = [[	53.39303,-6.39367],[53.39236,-6.39286],[53.39221,-6.39262]]
 #centre = get_centre_of_points(points,zoom)
 #print("centre is--",centre)
 
-points = [[55.952282, -3.462165],[55.952241, -3.462071]]
-print(pixelDistance(points[0][0],points[0][1],points[1][0],points[1][1],16))
+points = [[51.375375, -2.303901], [51.373611, -2.304148], [51.357788, -2.315616], [51.357347, -2.315961], [51.343584, -2.316484], [51.337356, -2.319944], [51.330684, -2.317093], [51.332954, -2.317976], [51.310785, -2.305842], [51.309345, -2.306097], [51.286027, -2.30028], [51.283964, -2.300818], [51.28565, -2.300219], [51.254324, -2.260063]]
+centre = get_centre_of_points_alternate(points, 14)
+zoom = calculateZoomValueAlternate(points)

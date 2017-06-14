@@ -9,6 +9,7 @@ import xlwt
 from openpyxl.chart import LineChart,PieChart,BarChart
 import math
 import datetime
+import pickle
 
 outline = 3 ## witdth of line to draw circles on the map
 siteDetails = None
@@ -19,7 +20,7 @@ sites = {}
 groups = {}
 groupCount = 1
 current_label = 64
-individual_site_zoom_value = 20
+individual_site_zoom_value = 19
 overview_map_details = []
 jobNumber = ""
 jobName = ""
@@ -36,8 +37,15 @@ def add_group():
     return groupName
 
 def delete_group(groupName):
-    global groups
+    global groups,groupCount
     del groups[groupName]
+    groupCount-=1
+    print(sorted(groups.items(), key=lambda x:0 if x[0] == "ALL" else int(x[0].replace("Group ","").strip())))
+    for index,key in enumerate(sorted(groups.keys(), key=lambda k:0 if k == "ALL" else int(k.replace("Group ","").strip()))):
+        print(index,key)
+        if key != "ALL":
+            groups["Group " + str(index)] = groups.pop(key)
+
 
 def add_site_to_group(groupName,site):
     global groups
@@ -63,12 +71,23 @@ def decrement_arm_label():
     ### when requested
     current_label-=1
 
+def change_site_image_type(val,site):
+    if val ==0:
+        val  = "roadmap"
+    else:
+        val = "satellite"
+    if sites[site]["imageType"] != val:
+        x,y = sites[site]["latlon"]
+        map = mapmanager.load_high_def_map_with_labels(x, y, sites[site]["zoom"],imageType=val)
+        map.save(str(sites[site]["Site Name"]) + ".png")
+        sites[site]["imageType"] = val
+
 def change_site_zoom(site,value):
     if value == "+":
         sites[site]["zoom"] += 1
     else:
         sites[site]["zoom"]-=1
-    map = mapmanager.load_high_def_map_with_labels(sites[site]["latlon"][0], sites[site]["latlon"][1], sites[site]["zoom"])
+    map = mapmanager.load_high_def_map_with_labels(sites[site]["latlon"][0], sites[site]["latlon"][1], sites[site]["zoom"],imageType=sites[site]["imageType"])
     map.save(str(sites[site]["Site Name"]) + ".png")
     armlist = [k for k, item in sites[site]["Arms"].items()]
     for arm in armlist:
@@ -79,18 +98,19 @@ def change_site_centre_point(site,x,y):
     ### x,y are the deltas that the map has changed by
     ###
     global siteDetails
-    print("changing site centre point")
+    print("changing site centre point,movement was",x,y)
     currentCentre = sites[site]["latlon"]
     zoom = sites[site]["zoom"]
-    newCentre = mapmanager.get_lat_lon_from_x_y(currentCentre,400-x,400-y,zoom)
+    newCentre = mapmanager.get_lat_lon_from_x_y(currentCentre,(640-(x*800/1280)),(640-(y*800/1280)),zoom,size=1280)
     print("new centre is ",newCentre)
     sites[site]["latlon"] = newCentre
-    print(siteDetails)
-    siteDetails.loc[siteDetails["Site Name"] == site,"Lat"] = newCentre[0]
-    siteDetails.loc[siteDetails["Site Name"] == site,"Lon"] = newCentre[1]
-    print("after change of site coords","-"*100)
-    print(siteDetails)
-    map = mapmanager.load_high_def_map_with_labels(sites[site]["latlon"][0], sites[site]["latlon"][1], sites[site]["zoom"])
+    #print(siteDetails)
+    #print(sites)
+    #siteDetails.loc[siteDetails["Site Name"] == site,"Lat"] = newCentre[0]
+    #siteDetails.loc[siteDetails["Site Name"] == site,"Lon"] = newCentre[1]
+    #print("after change of site coords","-"*100)
+    #print(siteDetails)
+    map = mapmanager.load_high_def_map_with_labels(sites[site]["latlon"][0], sites[site]["latlon"][1], sites[site]["zoom"],imageType =sites[site]["imageType"])
     map.save(str(sites[site]["Site Name"]) + ".png")
 
     armlist = [k for k, item in sites[site]["Arms"].items()]
@@ -120,6 +140,7 @@ def delete_arm_from_site(siteName,armName):
     print("after delete, site is", site)
 
 def edit_arm(siteName,armName,x,y):
+    print("in edit arm",siteName,armName,x,y)
     global siteDetails, sites
     site = sites.get(siteName, {})
     if site == {}:
@@ -128,6 +149,7 @@ def edit_arm(siteName,armName,x,y):
     site["coords"] = []
     row = siteDetails[siteDetails["Site Name"] == siteName]
     siteLatLon = row.values.tolist()[0][1:]
+    print("sitelatlon is",siteLatLon)
     armLatLon = mapmanager.get_lat_lon_from_x_y(siteLatLon, x, y, site["zoom"])
     site["coords"]=mapmanager.get_coords(overview_map_details[1],siteLatLon,overview_map_details[2],size=1280)
     print("location for arm is", armLatLon)
@@ -177,7 +199,7 @@ def get_project_details():
 def import_site_details_from_excel():
     global siteDetails,jobName,jobNumber,surveyDate,timePeriods
     fileList = list(filedialog.askopenfilenames(initialdir=dir))
-    if fileList == []:
+    if fileList == [] or fileList == "":
         return
     for f in fileList:
         print(f)
@@ -210,38 +232,58 @@ def import_site_details_from_excel():
     #print(timeList)
 
 def load_project():
-    global siteDetails, groups
+    global siteDetails, groups,sites
     import_site_details_from_excel()
-    download_all_individual_site_maps()
     download_overview_map()
-
-    fnt = ImageFont.truetype("arial", size=18)
-    img2 = Image.open("overview.png").convert('RGB')
-    drawimage = ImageDraw.Draw(img2)
-
-    for site in get_all_site_details():
+    sites={}
+    for index,site in enumerate(get_all_site_details()):
         sites[site[0]] = {}
         sites[site[0]]["Site Name"] = site[0]
+        sites[site[0]]["order"] = index
         sites[site[0]]["group"] = 1
-        siteNumber = site[0].lower().replace("site","")
         sites[site[0]]["Arms"] ={}
-        sites[site[0]]["zoom"] = 20
+        sites[site[0]]["zoom"] = individual_site_zoom_value
+        sites[site[0]]["imageType"] = "roadmap"
         sites[site[0]]["latlon"] = (site[1],site[2])
         sites[site[0]]["coords"] = mapmanager.get_coords(overview_map_details[1],(site[1],site[2]),overview_map_details[2],size=1280)
-        x = sites[site[0]]["coords"][0]
-        y = sites[site[0]]["coords"][1]
-        #drawimage.ellipse([x - 15- outline, y - 15- outline, x + 15+ outline, y + 15+ outline], outline="Black",fill = "black")
-        #drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white",fill = "white")
-        #drawimage.text((x-8, y-9), text=siteNumber,font=fnt, fill="black")
-    siteNameList = [site[0] for site in get_all_site_details()]
+    download_all_individual_site_maps()
     groups["ALL"] = {}
-    groups["ALL"]["siteList"] = siteNameList
+    groups["ALL"]["siteList"] = [site[0] for site in get_all_site_details()]
     groups["ALL"]["coords"] = []
-    img2.save("overview.png")
-
-    print("Sites are ",sites)
-    print(get_all_site_coords())
     return sites[get_all_site_details()[0][0]]
+
+def save_project_to_pickle(file):
+    global sites,groups
+    file = file.replace(".pkl","")
+    project = {"sites":sites,"groups":groups,"details":[jobName,jobNumber,surveyDate,timePeriods]}
+    with open(file + ".pkl","wb") as f:
+        pickle.dump(project,f)
+
+def load_project_from_pickle(file):
+    global sites,groups,jobName, jobNumber, surveyDate, timePeriods,siteDetails,groupCount
+    if ".pkl" in file:
+        try:
+            with open(file, "rb") as f:
+                project = pickle.load(f)
+                print("loaded project is",project)
+                sites = project["sites"]
+                groups=project["groups"]
+                groupCount = len(groups)
+                details = project["details"]
+                jobName, jobNumber, surveyDate, timePeriods = details
+                download_all_individual_site_maps()
+                siteList = [[site["order"],site["Site Name"],site["latlon"][0],site["latlon"][1]] for key,site in sites.items()]
+                siteDetails=pd.DataFrame(siteList)
+                siteDetails.sort_values(by=[0],inplace=True)
+                siteDetails.reset_index(drop=True,inplace=True)
+                siteDetails.columns=["order","Site Name","Lat","Lon"]
+                del siteDetails["order"]
+                download_overview_map()
+                return sites[get_all_site_details()[0][0]]
+        except Exception as e:
+            return None
+
+    return None
 
 def load_previous_site(siteName):
     ###
@@ -272,6 +314,7 @@ def load_next_site(siteName):
         return sites[siteDetails.iloc[curr].values.tolist()[0]]
 
 def export_to_excel(jobDetails):
+    global groups
     file = filedialog.asksaveasfilename()
     if file == "" or file is None:
         return
@@ -319,7 +362,7 @@ def export_to_excel(jobDetails):
     fnt = ImageFont.truetype("arial", size=18)
 
     count = 0
-    for key,site in sorted(sites.items(),key=lambda x:int(x[0].replace("Site ","").strip())):
+    for key,site in sorted(sites.items(),key=lambda x:x[1]["order"]): ### sorted(sites.items(),key=lambda x:int(x[0].replace("Site ","").strip())):
 
         ###
         ### check and adjust road names if any are duplicated within a site
@@ -374,7 +417,19 @@ def export_to_excel(jobDetails):
         count+=1
 
     count = 0
-    for key,group in sorted(groups.items()):
+    ###
+    ### remove any groups that have no sites attached
+    ###
+    groups = {k:v for k,v in groups.items() if len(v["siteList"]) != 0}
+    for index,key in enumerate(sorted(groups.keys(), key=lambda k:0 if k == "ALL" else int(k.replace("Group ","").strip()))):
+        print(index,key)
+        if key != "ALL":
+            groups["Group " + str(index)] = groups.pop(key)
+    ###
+    ### output groups
+    ###
+
+    for key,group in sorted(groups.items(), key=lambda x:0 if x[0] == "ALL" else int(x[0].replace("Group ","").strip())):
         print("key,value",key,group)
         download_group_map(key)
         img2 = Image.open(key + ".png")
@@ -442,10 +497,10 @@ def get_all_site_details():
     return siteDetails[["Site Name","Lat","Lon"]].values.tolist()
 
 def download_all_individual_site_maps():
-    for site in get_all_site_details():
-        map = mapmanager.load_high_def_map_with_labels(site[1],site[2],individual_site_zoom_value)
-        #map = mapmanager.load_high_def_map_without_labels(site[1], site[2], individual_site_zoom_value)
-        map.save(str(site[0]) + ".png")
+    for key,site in sites.items():
+        x,y = site["latlon"]
+        map = mapmanager.load_high_def_map_with_labels(x,y,site["zoom"],imageType=site["imageType"])
+        map.save(str(site["Site Name"]) + ".png")
 
 def download_overview_map():
     global overview_map_details
@@ -456,6 +511,8 @@ def download_overview_map():
 
 def download_group_map(groupName):
     grpList = groups[groupName]["siteList"]
+    if len(grpList)== 0:
+        return False
     groups[groupName]["coords"] = []
     print("grplist is",grpList)
     coordsList = [(site[1],site[2]) for site in get_all_site_details() if site[0] in grpList] ### coordsList is the list of lat/lons for each site in the group
@@ -535,3 +592,7 @@ def road_orientation(angle):
 #print(get_project_details())
 
 #import_site_details_from_excel()
+
+#import_site_details_from_excel()
+
+#print(siteDetails[["Lat","Lon"]].values.tolist())

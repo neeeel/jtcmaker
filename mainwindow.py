@@ -2,7 +2,7 @@ import tkinter
 from PIL import Image,ImageDraw,ImageTk
 import projectmanager
 import mapmanager
-from tkinter import font
+from tkinter import font,filedialog
 import math
 import numpy as np
 from tkinter import ttk
@@ -28,12 +28,16 @@ class MainWindow(tkinter.Tk):
         self.mapScale = 1
         self.topLeftOfImage = [0,0]
         self.baseMapImage = None
+        self.movingMap = False
+        self.drawingArm = False
 
         ### set up the menu bar
 
         self.menubar = tkinter.Menu(self)
         menu = tkinter.Menu(self.menubar, tearoff=0)
-        menu.add_command(label="Load Project", command=self.load_project)
+        menu.add_command(label="Load New Project", command=self.load_project)
+        menu.add_command(label="Load Previous Project", command=self.load_project_from_pickle)
+        menu.add_command(label="Save Current Project", command=self.save_project_to_pickle)
         #menu.add_command(label="Occupancy Mismatch", command=self.get_occupancy_mismatch)
         self.menubar.add_cascade(label="File", menu=menu)
         self.config(menu=self.menubar)
@@ -96,6 +100,7 @@ class MainWindow(tkinter.Tk):
         self.groupsTree = ttk.Treeview(self.detailsPanel, columns=cols, height=8, show="headings", selectmode="browse")
         self.groupsTree.bind("<<TreeviewSelect>>", self.display_group)
         self.groupsTree.bind("<Double-Button-1>",self.delete_group)
+        self.groupsTree.bind("<Button-3>", self.show_group_map)
         self.groupsTree.tag_configure("odd", background="white", foreground=self.tracsisBlue)
         self.groupsTree.tag_configure("even", background="azure2", foreground=self.tracsisBlue)
         for i, c in enumerate(cols):
@@ -106,6 +111,7 @@ class MainWindow(tkinter.Tk):
 
         self.groupList = tkinter.Listbox(self.detailsPanel)
         self.groupList.bind("<Double-Button-1>", self.delete_site_from_group)
+        self.groupList.bind("<Button-3>", self.show_group_map)
         self.groupList.grid(row = 12,column = 0,columnspan = 2)
         tkinter.Button(self.detailsPanel,text = "Add",command=self.add_group,width = 6).grid(row = 11,column = 0,columnspan = 2)
         #tkinter.Button(self.detailsPanel, text="Delete", command=self.delete_class,width = 6).grid(row=13, column=0, columnspan=2)
@@ -128,10 +134,13 @@ class MainWindow(tkinter.Tk):
         self.mapLabel.grid(row = 0,column = 1)
         tkinter.Button(self,text="Export",command=self.export_to_excel).grid(row=4,column=0)
         frame = tkinter.Frame(self)
-        tkinter.Button(frame, text="<", command=lambda:self.decrement_map(None),width = 4,height = 2).grid(row=0, column=0,padx = 5)
-        tkinter.Button(frame, text="+", command=lambda:self.change_site_zoom("+"),width = 4,height = 2).grid(row=0, column=1,padx = 5)
-        tkinter.Button(frame, text="-", command=lambda:self.change_site_zoom("-"),width = 4,height = 2).grid(row=0, column=2,padx = 5)
-        tkinter.Button(frame, text=">", command=lambda:self.increment_map(None),width = 4,height = 2).grid(row=0, column=3,padx = 5)
+        tkinter.Button(frame, text="<", command=lambda:self.decrement_map(None),width = 4,height = 2).grid(row=0, column=0,padx = 5,rowspan=2)
+        tkinter.Button(frame, text="+", command=lambda:self.change_site_zoom("+"),width = 4,height = 2).grid(row=0, column=1,padx = 5,rowspan=2)
+        tkinter.Button(frame, text="-", command=lambda:self.change_site_zoom("-"),width = 4,height = 2).grid(row=0, column=2,padx = 5,rowspan=2)
+        tkinter.Button(frame, text=">", command=lambda:self.increment_map(None),width = 4,height = 2).grid(row=0, column=3,padx = 5,rowspan=2)
+        self.imageTypeVar = tkinter.IntVar()
+        tkinter.Radiobutton(frame,text = "regular",variable=self.imageTypeVar,value=0,command=self.change_site_image_type).grid(row=0,column=4)
+        tkinter.Radiobutton(frame,text = "Satellite",variable=self.imageTypeVar,value=1,command=self.change_site_image_type).grid(row=1,column=4)
         frame.grid(row = 4,column=1)
 
 
@@ -266,15 +275,8 @@ class MainWindow(tkinter.Tk):
         self.baseMapImage = self.overviewDetails[0]
         #self.overviewPanel.create_image(5, 5, image=self.overviewDetails[0], anchor=tkinter.NW, tags=("map",))
         self.overviewPanel.configure(width=800, height=800)
-        self.groupsTree.delete(*self.groupsTree.get_children())
-        for name,grp in sorted(projectmanager.get_groups().items()):
-            rowCount = len(self.classesTree.get_children())
-            if rowCount % 2 == 0:
-                self.groupsTree.insert("", "end", values=[name], tags=("tree", "even"))
-            else:
-                self.groupsTree.insert("", "end", values=[name], tags=("tree", "odd"))
+        self.update_groups_tree()
         self.display_group(None)
-
 
     def draw_overview_site_labels(self):
         self.overviewPanel.delete(tkinter.ALL)
@@ -360,12 +362,37 @@ class MainWindow(tkinter.Tk):
             self.groupsTree.insert("", "end", values=[groupName], tags=("tree", "odd"))
 
     def delete_group(self,event):
+        print("selection is",self.groupsTree.selection())
+        if self.groupsTree.selection()== "":
+            return
         curItem = self.groupsTree.selection()[0]
         groupName = self.groupsTree.item(curItem)["values"][0]
         print("selected group", groupName)
         if groupName != "ALL":
-            self.groupsTree.delete(curItem)
             projectmanager.delete_group(groupName)
+        self.update_groups_tree()
+
+    def show_group_map(self,event):
+        curItem = event.widget.identify_row(event.y)
+        print("curitemis",curItem)
+        print(self.groupsTree.item(curItem))
+        groupName = self.groupsTree.item(curItem)["values"][0]
+        print("groupname is",groupName)
+        result = projectmanager.download_group_map(groupName)
+        if result != False:
+            img2 = Image.open(groupName + ".png")
+            img2.show()
+
+    def update_groups_tree(self):
+        self.groupsTree.delete(*self.groupsTree.get_children())
+        for name, grp in sorted(projectmanager.get_groups().items(),
+                                key=lambda x: 0 if x[0] == "ALL" else int(x[0].replace("Group ", "").strip())):
+            rowCount = len(self.groupsTree.get_children())
+            print("rowcount is", rowCount)
+            if rowCount % 2 == 0:
+                self.groupsTree.insert("", "end", values=[name], tags=("tree", "even"))
+            else:
+                self.groupsTree.insert("", "end", values=[name], tags=("tree", "odd"))
 
     def add_site_to_group(self,site):
         if self.groupsTree.selection() == "":
@@ -479,8 +506,36 @@ class MainWindow(tkinter.Tk):
     ### methods to deal with the site maps,importing, exporting projects etc
     ###
 
+    def change_site_image_type(self):
+        projectmanager.change_site_image_type(self.imageTypeVar.get(),self.currentSite["Site Name"])
+        self.redraw_map_with_labels()
+
     def load_project(self):
         self.currentSite = projectmanager.load_project()
+        self.display_project()
+
+    def save_project_to_pickle(self):
+        file = filedialog.asksaveasfilename()
+        if file == "":
+            return
+        projectmanager.save_project_to_pickle(file)
+
+    def load_project_from_pickle(self):
+        file = filedialog.askopenfilename()
+        if file == "":
+            return
+        result = projectmanager.load_project_from_pickle(file)
+        print("result is",result)
+        if result is None:
+            messagebox.showinfo(message="Something went wrong when loading the file, no project loaded")
+            return
+        self.currentSite = result
+        self.load_overview_map()
+        self.display_project()
+        self.redraw_map_with_labels()
+
+    def display_project(self):
+        print("current site is", self.currentSite)
         projectDetails = projectmanager.get_project_details()
         self.jobNameVar.set(projectDetails[0])
         self.jobNumVar.set(projectDetails[1])
@@ -536,11 +591,13 @@ class MainWindow(tkinter.Tk):
         jobDetails["classes"] = classes
         jobDetails["period"] = period
         projectmanager.export_to_excel(jobDetails)
+        self.update_groups_tree()
         messagebox.showinfo(message="Export Finished")
 
     def increment_map(self,event):
         print("pressed right arrow")
         self.currentSite = projectmanager.load_next_site(self.currentSite["Site Name"])
+        print("currenty site is",self.currentSite)
         self.redraw_map_with_labels()
 
     def decrement_map(self,event):
@@ -557,9 +614,18 @@ class MainWindow(tkinter.Tk):
         self.currentTag = ""
         self.dragInfo = {}
         for key, item in self.currentSite["Arms"].items():
+            print("drawing",key,item)
             self.draw_arm_label(key, item["coords"][0], item["coords"][1])
             self.redraw_arm_line(item["line coords"])
             self.armList.append(key)
+        self.armList = sorted(self.armList)
+        print("armlist is",self.armList)
+        self.bind_all("<Delete>", self.delete_most_recent_arm)
+        if self.currentSite["imageType"] == "roadmap":
+            val = 0
+        else:
+            val = 1
+        self.imageTypeVar.set(val)
 
     def load_map_panel_map(self,siteName):
         self.mapPanelImage = projectmanager.get_site_map(siteName)
@@ -578,6 +644,10 @@ class MainWindow(tkinter.Tk):
     ###
 
     def add_arm_icon(self,event):
+        if self.movingMap == True:
+            print("moving map, not allowing left click functionality")
+            return
+        self.drawingArm = True
         x = event.x - self.mapPanel.canvasx(0)
         y = event.y - self.mapPanel.canvasy(0)
         if self.currentSite["Arms"] == {}:
@@ -587,8 +657,6 @@ class MainWindow(tkinter.Tk):
         projectmanager.edit_arm(self.currentSite["Site Name"],armName,x,y)
         self.draw_arm_label(armName,x,y)
         self.mapPanel.unbind("<Double-Button-1>")
-
-
         self.unbind_all("<BackSpace>")
         self.unbind_all("<Delete>")
         print("unbinding left and right in add arm icon")
@@ -602,6 +670,7 @@ class MainWindow(tkinter.Tk):
         print("armlist is",self.armList)
 
     def draw_arm_label(self,armName,x,y):
+
         print("Drawing a label at ",x,y)
         f = tkinter.font.Font(family='Helvetica', size=self.fontsize, weight=tkinter.font.BOLD)
         self.mapPanel.create_oval(x-self.armLabelRadius,y-self.armLabelRadius,x+self.armLabelRadius,y+self.armLabelRadius,width = 3,outline="red",tags=str(armName))
@@ -612,14 +681,17 @@ class MainWindow(tkinter.Tk):
         self.armLine = self.mapPanel.create_line(lineCoords, fill="red", width=3, tags=(self.currentTag, "line"))
         print("redrawing line, self.armline is now,",self.armLine)
         self.dragInfo["Widget"] =self.armLine
+        self.armLine = None
 
     def delete_most_recent_arm(self,event):
-        if self.mapPanelHasFocus:
-            if self.armList == []:              return
-            armName = (self.armList.pop(-1))
-            self.mapPanel.delete(armName)
-            projectmanager.delete_arm_from_site(self.currentSite["Site Name"],armName)
-            projectmanager.decrement_arm_label()
+        print("deleting arm")
+
+        if self.armList == []:              return
+        print("armlist is",self.armList)
+        armName = (self.armList.pop(-1))
+        self.mapPanel.delete(armName)
+        projectmanager.delete_arm_from_site(self.currentSite["Site Name"],armName)
+        projectmanager.decrement_arm_label()
 
     def draw_arm_line(self,event):
         print("in draw arm line,self.armline is",self.armLine)
@@ -665,15 +737,13 @@ class MainWindow(tkinter.Tk):
 
     def finish_arm_line(self,event):
         if self.armLine is None:
+            self.drawingArm = False
             return
         winX = event.x - self.mapPanel.canvasx(0)
         winY = event.y - self.mapPanel.canvasy(0)
         self.mapPanel.unbind("<Motion>")
         self.mapPanel.bind("<Double-Button-1>", self.add_arm_icon)
         self.mapPanel.bind("<Button-1>", self.on_press_to_move)
-        print("binding left and right in finish arm line")
-        self.bind("<Left>", self.decrement_map)
-        self.bind("<Right>", self.increment_map)
         print("in finish arm line, self.armline widget is",self.armLine)
         print("tags are ",self.mapPanel.gettags(self.armLine))
         self.mapPanel.itemconfigure(self.armLine,fill = "red")
@@ -718,16 +788,22 @@ class MainWindow(tkinter.Tk):
         self.bind_all("<BackSpace>", self.delete_most_recent_arm)
         self.bind_all("<Delete>", self.delete_most_recent_arm)
         self.pickedUpLine = False
+        self.drawingArm = False
         #self.focus_set()
 
     def on_right_click_to_move_map(self,event):
+        if self.drawingArm == True:
+            print("drawing arm, not allowing movement of map")
+            return
         winX = event.x - self.mapPanel.canvasx(0)
         winY = event.y - self.mapPanel.canvasy(0)
         print("clicked at", winX, winY)
         closestWidget = self.mapPanel.find_closest(event.x, event.y, halo=10)[0]
 
         tags = self.mapPanel.gettags(closestWidget)
+        print("tags are",tags)
         if "map" in tags:
+            self.movingMap = True
             print("clicked on the map")
             self.dragInfo["Widget"] = closestWidget
             self.dragInfo["xCoord"] = winX
@@ -740,18 +816,21 @@ class MainWindow(tkinter.Tk):
             return
 
     def onReleaseRightClickToMove(self,event):
+        if self.drawingArm == True:
+            return
         winX = event.x - self.mapPanel.canvasx(0)
         winY = event.y - self.mapPanel.canvasy(0)
         print("binding")
         self.bind("<Left>", self.decrement_map)
         self.bind("<Right>", self.increment_map)
-        print("map was moved", winX - self.mapClickedCoords[0], winY - self.mapClickedCoords[1])
+        #print("map was moved", winX - self.mapClickedCoords[0], winY - self.mapClickedCoords[1])
         self.mapPanel.unbind("<B3-Motion>")
         self.mapPanel.unbind("<ButtonRelease-3>")
-        if winX - self.mapClickedCoords[0] != 0 and winY - self.mapClickedCoords[1] != 0:
-            projectmanager.change_site_centre_point(self.currentSite["Site Name"], winX - self.mapClickedCoords[0],winY - self.mapClickedCoords[1])
-            self.redraw_map_with_labels()
-        return
+        if self.movingMap == True:
+            if winX - self.mapClickedCoords[0] != 0 and winY - self.mapClickedCoords[1] != 0:
+                projectmanager.change_site_centre_point(self.currentSite["Site Name"], winX - self.mapClickedCoords[0],winY - self.mapClickedCoords[1])
+                self.redraw_map_with_labels()
+        self.movingMap = False
 
     def onright_click_movement(self, event):
         if self.dragInfo["tag"] == -1:
@@ -767,20 +846,20 @@ class MainWindow(tkinter.Tk):
         self.dragInfo["xCoord"] = winX
         self.dragInfo["yCoord"] = winY
 
-
     def on_press_to_move(self,event):
+        if self.movingMap == True:
+            print("moving map, not allowing left click functionality")
+            return
         winX = event.x - self.mapPanel.canvasx(0)
         winY = event.y - self.mapPanel.canvasy(0)
         print("clicked at", winX, winY)
         self.dragInfo["Widget"] = self.mapPanel.find_closest(event.x, event.y, halo=10)[0]
+        print("setting draginfo widget to",self.dragInfo["Widget"])
         self.dragInfo["xCoord"] = winX
         self.dragInfo["yCoord"] = winY
         self.dragInfo["tag"] = -1
         tags = self.mapPanel.gettags(self.dragInfo["Widget"])
         allwidgetsWithTag = self.mapPanel.find_withtag(tags[0])
-        print("unbinding left and right in on press to move")
-        self.unbind("<Left>")
-        self.unbind("<Right>")
         if "line" in (tags):
             self.pickedUpLine = True
             self.mapPanel.unbind("<ButtonRelease>")
@@ -792,43 +871,36 @@ class MainWindow(tkinter.Tk):
             self.mapPanel.bind("<Button-1>", self.finish_arm_line)
             self.mapPanel.unbind_all("<ButtonRelease>")
 
+        elif "map" in tags:
+            print("clicked on the map")
+            self.dragInfo["tag"] = "map"
+            return
         else:
-            if "map" in tags:
-                print("clicked on the map")
-                self.dragInfo["tag"] = "map"
-                return
-                self.mapClickedCoords = (winX,winY)
-                self.mapPanel.bind("<B1-Motion>", self.onMovement)
-                self.mapPanel.bind("<ButtonRelease>", self.onReleaseToMove)
-                return
-            else:
-                print("clicked on a circle")
-                self.mapPanel.bind("<B1-Motion>", self.onMovement)
-                self.mapPanel.bind("<ButtonRelease>", self.onReleaseToMove)
-                self.mapPanel.itemconfigure(allwidgetsWithTag[0], outline="blue")
-                self.mapPanel.itemconfigure(allwidgetsWithTag[1], fill="blue")
+            print("clicked on a circle")
+            self.mapPanel.bind("<B1-Motion>", self.onMovement)
+            self.mapPanel.bind("<ButtonRelease>", self.onReleaseToMove)
+            self.mapPanel.itemconfigure(allwidgetsWithTag[0], outline="blue")
+            self.mapPanel.itemconfigure(allwidgetsWithTag[1], fill="blue")
         print("-"*200)
         self.dragInfo["tag"] = tags[0]
         print("setting draginfo tag to",self.dragInfo["tag"])
         self.mapPanel.itemconfigure(allwidgetsWithTag[2], fill="blue")
 
     def onReleaseToMove(self, event):  # reset data on release
+        print("draginfo  is",self.dragInfo)
         if self.pickedUpLine:
             print("picked up line is true")
+            return
+        if self.dragInfo["Widget"] is None:
+            print("no widget selected")
             return
         winX = event.x - self.mapPanel.canvasx(0)
         winY = event.y - self.mapPanel.canvasy(0)
         if self.dragInfo["tag"] == "map":
-            print("binding")
-            self.bind("<Left>", self.decrement_map)
-            self.bind("<Right>", self.increment_map)
-            return
-            print("map was moved",winX - self.mapClickedCoords[0],winY - self.mapClickedCoords[1])
-            self.mapPanel.unbind("<B1-Motion>")
-            self.mapPanel.unbind("<ButtonRelease>")
-            if winX - self.mapClickedCoords[0]!= 0  and winY - self.mapClickedCoords[1] != 0:
-                projectmanager.change_site_centre_point(self.currentSite["Site Name"],winX - self.mapClickedCoords[0],winY - self.mapClickedCoords[1])
-                self.redraw_map_with_labels()
+            self.dragInfo["Widget"] = None
+            self.dragInfo["xCoord"] = 0
+            self.dragInfo["yCoord"] = 0
+            self.dragInfo["tag"] = -1
             return
         print("in onreleasetomove, self.dragInfo[Widget] is",self.dragInfo["Widget"])
         tags = self.mapPanel.gettags(self.dragInfo["Widget"])
@@ -877,7 +949,6 @@ class MainWindow(tkinter.Tk):
         self.dragInfo["yCoord"] = winY
 
     ########################################################################################################
-
 
     def rollWheel(self,event):
         if self.baseImage == None:
