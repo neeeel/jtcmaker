@@ -13,7 +13,8 @@ import pickle
 
 outline = 3 ## witdth of line to draw circles on the map
 siteDetails = None
-
+baseClasses = [["Car","Car/Taxi",1],["LGV","Light Goods Vehicle",1],["OGV1","Other Goods Vehicle 1",1.5],["OGV2","Other Goods Vehicle 2",2.3],["PSV","Omnibus",2],["MC","Motorcycle",0.4],["PC","Pedal Cycle",0.2]]
+projectClasses = [["Car","Car/Taxi",1],["LGV","Light Goods Vehicle",1],["OGV1","Other Goods Vehicle 1",1.5],["OGV2","Other Goods Vehicle 2",2.3],["PSV","Omnibus",2],["MC","Motorcycle",0.4],["PC","Pedal Cycle",0.2]]
 excelMapWidth = 576.5295 ### the size of the map in the excel template sheet
 excelMapHeight = 576.5295
 sites = {}
@@ -26,6 +27,28 @@ jobNumber = ""
 jobName = ""
 surveyDate= ""
 timePeriods  = ""
+
+
+
+####################################################################################################
+###
+### Deal with classes
+
+def get_classes():
+    return projectClasses
+
+def delete_class(index):
+    projectClasses.pop(index)
+
+def add_class(vals):
+    projectClasses.append(vals)
+
+def edit_class(vals,index):
+    projectClasses[index] = vals
+
+####################################################################################################
+###
+### Deal with groups
 
 def add_group():
     global groupCount, groups
@@ -46,7 +69,6 @@ def delete_group(groupName):
         if key != "ALL":
             groups["Group " + str(index)] = groups.pop(key)
 
-
 def add_site_to_group(groupName,site):
     global groups
     groups[groupName]["siteList"].append(site)
@@ -57,6 +79,11 @@ def delete_site_from_group(groupName,site):
 
 def get_groups():
     return groups
+
+
+####################################################################################################
+###
+### Deal with sites
 
 def load_sites():
     pass
@@ -232,7 +259,7 @@ def import_site_details_from_excel():
     #print(timeList)
 
 def load_project():
-    global siteDetails, groups,sites
+    global siteDetails, groups,sites,projectClasses
     import_site_details_from_excel()
     download_overview_map()
     sites={}
@@ -250,17 +277,18 @@ def load_project():
     groups["ALL"] = {}
     groups["ALL"]["siteList"] = [site[0] for site in get_all_site_details()]
     groups["ALL"]["coords"] = []
+    projectClasses = list(baseClasses)
     return sites[get_all_site_details()[0][0]]
 
 def save_project_to_pickle(file):
     global sites,groups
     file = file.replace(".pkl","")
-    project = {"sites":sites,"groups":groups,"details":[jobName,jobNumber,surveyDate,timePeriods]}
+    project = {"sites":sites,"groups":groups,"details":[jobName,jobNumber,surveyDate,timePeriods],"classes":projectClasses}
     with open(file + ".pkl","wb") as f:
         pickle.dump(project,f)
 
 def load_project_from_pickle(file):
-    global sites,groups,jobName, jobNumber, surveyDate, timePeriods,siteDetails,groupCount
+    global sites,groups,jobName, jobNumber, surveyDate, timePeriods,siteDetails,groupCount,projectClasses
     if ".pkl" in file:
         try:
             with open(file, "rb") as f:
@@ -270,6 +298,7 @@ def load_project_from_pickle(file):
                 groups=project["groups"]
                 groupCount = len(groups)
                 details = project["details"]
+                projectClasses = project["classes"]
                 jobName, jobNumber, surveyDate, timePeriods = details
                 download_all_individual_site_maps()
                 siteList = [[site["order"],site["Site Name"],site["latlon"][0],site["latlon"][1]] for key,site in sites.items()]
@@ -355,8 +384,9 @@ def export_to_excel(jobDetails):
     sht.cell(row=4, column=14).value = jobNumber
     sht.cell(row=5, column=14).value = jobName
     sht.cell(row=6,column=14).value = surveyDate.strftime("%d/%m/%Y")
-    for index,cl in enumerate(jobDetails["classes"]):
-        sht.cell(row=index+2, column=50).value = cl
+    for index,cl in enumerate(projectClasses):
+        sht.cell(row=index+2, column=50).value = cl[0]
+        sht.cell(row=index + 2, column=52).value = cl[2]
     row = 2
 
     fnt = ImageFont.truetype("arial", size=18)

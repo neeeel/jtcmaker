@@ -81,11 +81,7 @@ class MainWindow(tkinter.Tk):
         self.classesTree.column(1, width=150, anchor=tkinter.CENTER)
         self.classesTree.column(2, width=40, anchor=tkinter.CENTER)
         self.classesTree.grid(row = 6,column = 0,columnspan = 2)
-        for i,row in enumerate(baseClasses):
-            if i%2 == 0:
-                self.classesTree.insert("","end",values =row,tags=("tree","even"))
-            else:
-                self.classesTree.insert("", "end", values=row, tags=("tree", "odd"))
+        self.display_classes()
 
         tkinter.Button(self.detailsPanel,text = "Add",command=self.add_class,width = 6).grid(row = 7,column = 0,columnspan = 2)
         tkinter.Button(self.detailsPanel, text="Delete", command=self.delete_class,width = 6).grid(row=8, column=0, columnspan=2)
@@ -155,6 +151,7 @@ class MainWindow(tkinter.Tk):
         self.addingArmLabel = False
         self.armLineStartingCoords = None
         self.armList = []
+        self.dragInfo ={}
         self.mapPanel.grid(row=1,column=1,rowspan=3)
         self.mapPanel.bind("<Double-Button-1>",self.add_arm_icon)
         self.mapPanel.bind("<Button-1>",self.on_press_to_move)
@@ -457,16 +454,17 @@ class MainWindow(tkinter.Tk):
     def edit_window_saved(self):
         values = [self.classVar.get(), self.descVar.get(), self.PCUVar.get()]
         if self.addClass:
-            rowCount = len(self.classesTree.get_children())
-            if rowCount % 2 == 0:
-                self.classesTree.insert("", "end", values=values,tags=("tree", "even"))
-            else:
-                self.classesTree.insert("", "end", values=values, tags=("tree", "odd"))
+            projectmanager.add_class(values)
         else:
             curItem = self.classesTree.selection()[0]
-            self.classesTree.item(curItem,values = values)
+            if "I0" in curItem:
+                index = 0
+            else:
+                index = int(curItem)
+            projectmanager.edit_class(values,index)
         self.addClass=False
         self.edit_window_closed()
+        self.display_classes()
 
     def edit_class(self,event):
         self.addClass = False
@@ -484,13 +482,22 @@ class MainWindow(tkinter.Tk):
             curItem = self.classesTree.selection()[0]
             print("curitem is",curItem)
             self.classesTree.delete(curItem)
-            for i,child in enumerate(self.classesTree.get_children()):
-                if i % 2 == 0:
-                    self.classesTree.item(child,tags=("tree", "even"))
-                else:
-                    self.classesTree.item(child,tags=("tree", "odd"))
+            if "I0" in curItem:
+                index = 0
+            else:
+                index = int(curItem)
+            projectmanager.delete_class(index)
+            self.display_classes()
         except IndexError as e:
-            pass
+            print("eoriehjo")
+
+    def display_classes(self):
+        self.classesTree.delete(*self.classesTree.get_children())
+        for i,row in enumerate(projectmanager.get_classes()):
+            if i % 2 == 0:
+                self.classesTree.insert("", "end",iid=i, values=row, tags=("tree", "even"))
+            else:
+                self.classesTree.insert("", "end",iid=i, values=row, tags=("tree", "odd"))
 
 
     ########################################################################################################################
@@ -511,6 +518,10 @@ class MainWindow(tkinter.Tk):
         self.redraw_map_with_labels()
 
     def load_project(self):
+        self.armList = []
+        self.mapPanel.delete(tkinter.ALL)
+        self.overviewPanel.delete(tkinter.ALL)
+        self.dragInfo["widget"] = None
         self.currentSite = projectmanager.load_project()
         self.display_project()
 
@@ -548,6 +559,7 @@ class MainWindow(tkinter.Tk):
         self.load_overview_map()
         self.currentTag = ""
         self.dragInfo = {}
+        self.display_classes()
 
     def change_site_zoom(self,value):
         projectmanager.change_site_zoom(self.currentSite["Site Name"],value)
@@ -644,6 +656,7 @@ class MainWindow(tkinter.Tk):
     ###
 
     def add_arm_icon(self,event):
+        print("currentsite is",self.currentSite)
         if self.movingMap == True:
             print("moving map, not allowing left click functionality")
             return
@@ -784,6 +797,7 @@ class MainWindow(tkinter.Tk):
         self.currentSite["Arms"][self.currentTag]["line coords"] = self.mapPanel.coords(self.armLine)
         print("in mainwindow, site is now ", self.currentSite)
         print("line coords are ",self.mapPanel.coords(self.armLine))
+        self.dragInfo["tag"] = self.mapPanel.gettags(self.armLine)[0]
         self.armLine = None
         self.bind_all("<BackSpace>", self.delete_most_recent_arm)
         self.bind_all("<Delete>", self.delete_most_recent_arm)
