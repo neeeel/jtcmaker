@@ -152,6 +152,7 @@ class MainWindow(tkinter.Tk):
         self.armLineStartingCoords = None
         self.armList = []
         self.dragInfo ={}
+        self.dragInfo["Widget"] = None
         self.mapPanel.grid(row=1,column=1,rowspan=3)
         self.mapPanel.bind("<Double-Button-1>",self.add_arm_icon)
         self.mapPanel.bind("<Button-1>",self.on_press_to_move)
@@ -247,10 +248,7 @@ class MainWindow(tkinter.Tk):
             diff = previousCw - cw
             self.topLeftOfImage[0] += int(diff / 2)
             self.topLeftOfImage[1] += int(diff / 2)
-
-
         self.draw_overview_site_labels()
-
 
     def mouse_over_map_panel(self,event):
         print("mouse over")
@@ -428,6 +426,7 @@ class MainWindow(tkinter.Tk):
         if not self.winSpawned:
             self.winSpawned = True
             self.win = tkinter.Toplevel(self)
+            self.win.protocol("WM_DELETE_WINDOW", self.edit_window_closed)
             self.classesTree.configure(selectmode = "none")
             tkinter.Label(self.win, text="Class", anchor=tkinter.E, width=12).grid(row=0, column=0)
             tkinter.Label(self.win, text="Description", anchor=tkinter.E, width=12).grid(row=1, column=0)
@@ -469,6 +468,8 @@ class MainWindow(tkinter.Tk):
     def edit_class(self,event):
         self.addClass = False
         widget = event.widget
+        if len(widget.selection()) == 0:
+            return
         curItem = widget.selection()[0]
         values = widget.item(curItem)["values"]
         self.spawn_edit_window(className=values[0],desc=values[1],pcu=values[2])

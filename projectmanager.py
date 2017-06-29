@@ -397,12 +397,17 @@ def export_to_excel(jobDetails):
         ###
         ### check and adjust road names if any are duplicated within a site
         ###
+        print("here")
         dets = [[k, i["orientation"] + 180, i["road"]] for k, i in site["Arms"].items()]
         mylist = [item["road"] for key, item in site["Arms"].items()]
+        print([(item["road"],key) for key, item in site["Arms"].items()])
+        print("list of roads",mylist)
         for road in mylist:
             matches = [x for x in dets if x[2] == road]
             if len(matches) > 1:
+                print("matches are",matches)
                 for m in matches:
+
                     road = m[2] + "(" + road_orientation(m[1]) + ")"
                     site["Arms"][m[0]]["road"] = road
 
