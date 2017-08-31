@@ -10,11 +10,12 @@ from openpyxl.chart import LineChart,PieChart,BarChart
 import math
 import datetime
 import pickle
+import copy
 
 outline = 3 ## witdth of line to draw circles on the map
 siteDetails = None
-baseClasses = [["Car","Car/Taxi",1],["LGV","Light Goods Vehicle",1],["OGV1","Other Goods Vehicle 1",1.5],["OGV2","Other Goods Vehicle 2",2.3],["PSV","Omnibus",2],["MC","Motorcycle",0.4],["PC","Pedal Cycle",0.2]]
-projectClasses = [["Car","Car/Taxi",1],["LGV","Light Goods Vehicle",1],["OGV1","Other Goods Vehicle 1",1.5],["OGV2","Other Goods Vehicle 2",2.3],["PSV","Omnibus",2],["MC","Motorcycle",0.4],["PC","Pedal Cycle",0.2]]
+baseClasses = [["Car",1],["LGV",1],["OGV1",1.5],["OGV2",2.3],["PSV",2],["MC",0.4],["PC",0.2]]
+projectClasses = [["Car",1],["LGV",1],["OGV1",1.5],["OGV2",2.3],["PSV",2],["MC",0.4],["PC",0.2]]
 excelMapWidth = 576.5295 ### the size of the map in the excel template sheet
 excelMapHeight = 576.5295
 sites = {}
@@ -45,6 +46,22 @@ def add_class(vals):
 
 def edit_class(vals,index):
     projectClasses[index] = vals
+
+def move_class_up(index):
+    if index == 0:
+        return index
+    temp = projectClasses[index]
+    projectClasses[index] = projectClasses[index-1]
+    projectClasses[index - 1] = temp
+    return index -1
+
+def move_class_down(index):
+    if index == len(projectClasses)-1:
+        return index
+    temp = projectClasses[index]
+    projectClasses[index] = projectClasses[index+1]
+    projectClasses[index + 1] = temp
+    return index + 1
 
 ####################################################################################################
 ###
@@ -131,12 +148,13 @@ def change_site_centre_point(site,x,y):
     newCentre = mapmanager.get_lat_lon_from_x_y(currentCentre,(640-(x*800/1280)),(640-(y*800/1280)),zoom,size=1280)
     print("new centre is ",newCentre)
     sites[site]["latlon"] = newCentre
-    #print(siteDetails)
+    print(siteDetails)
     #print(sites)
-    #siteDetails.loc[siteDetails["Site Name"] == site,"Lat"] = newCentre[0]
-    #siteDetails.loc[siteDetails["Site Name"] == site,"Lon"] = newCentre[1]
+    siteDetails.loc[siteDetails["Site Name"] == site,"Lat"] = newCentre[0]
+    siteDetails.loc[siteDetails["Site Name"] == site,"Lon"] = newCentre[1]
     #print("after change of site coords","-"*100)
-    #print(siteDetails)
+    print(siteDetails)
+    download_overview_map()
     map = mapmanager.load_high_def_map_with_labels(sites[site]["latlon"][0], sites[site]["latlon"][1], sites[site]["zoom"],imageType =sites[site]["imageType"])
     map.save(str(sites[site]["Site Name"]) + ".png")
 
@@ -180,11 +198,11 @@ def edit_arm(siteName,armName,x,y):
     armLatLon = mapmanager.get_lat_lon_from_x_y(siteLatLon, x, y, site["zoom"])
     site["coords"]=mapmanager.get_coords(overview_map_details[1],siteLatLon,overview_map_details[2],size=1280)
     print("location for arm is", armLatLon)
-    print("road for arm is", mapmanager.get_road_name(armLatLon[0], armLatLon[1]))
     site["Arms"][armName] = {}
     site["Arms"][armName]["latlon"] = armLatLon
     site["Arms"][armName]["coords"] = (x, y)
     site["Arms"][armName]["road"] = mapmanager.get_road_name(armLatLon[0], armLatLon[1])
+    print("road for arm is",site["Arms"][armName]["road"])
     site["Arms"][armName]["orientation"] = 0
     print("site is now", site)
     print("")
@@ -224,7 +242,7 @@ def get_project_details():
     return [jobName,jobNumber,surveyDate,timePeriods]
 
 def import_site_details_from_excel():
-    global siteDetails,jobName,jobNumber,surveyDate,timePeriods
+    global siteDetails,jobName,jobNumber,surveyDate,timePeriods,projectClasses
     fileList = list(filedialog.askopenfilenames(initialdir=dir))
     if fileList == [] or fileList == "":
         return
@@ -242,6 +260,25 @@ def import_site_details_from_excel():
     surveyDate = wb.worksheets[0]["F8"].value
     print("type of surveyDatei s",type(surveyDate))
     print(jobNumber)
+    ###
+    ### load classes
+    ###
+    col = 6
+    classList = []
+    while not wb.worksheets[0].cell(row=12, column=col).value is None:
+        try:
+            pcu = int(wb.worksheets[0].cell(row=13,column=col).value)
+        except Exception as e:
+            pcu = 1
+        classList.append([wb.worksheets[0].cell(row=12,column=col).value,pcu])
+        col+=1
+    if classList != []:
+        projectClasses = classList
+    else:
+        projectClasses = list(baseClasses)
+    ###
+    ### load time periods
+    ###
     col = 6
     timeList = []
     while not wb.worksheets[0].cell(row=16,column=col).value is None:
@@ -277,13 +314,36 @@ def load_project():
     groups["ALL"] = {}
     groups["ALL"]["siteList"] = [site[0] for site in get_all_site_details()]
     groups["ALL"]["coords"] = []
-    projectClasses = list(baseClasses)
+    #projectClasses = list(baseClasses)
     return sites[get_all_site_details()[0][0]]
 
 def save_project_to_pickle(file):
     global sites,groups
     file = file.replace(".pkl","")
-    project = {"sites":sites,"groups":groups,"details":[jobName,jobNumber,surveyDate,timePeriods],"classes":projectClasses}
+    sitesToSave = {}
+    for siteName,site in sites.items():
+        print(siteName,site)
+        newSite  = {}
+        sitesToSave[siteName] = newSite
+        for key,value in site.items():
+            print(key,value)
+            if key == "Arms":
+                newSite["Arms"] = {}
+                for armLabel,arm in value.items():
+                    print(armLabel,arm)
+                    newSite["Arms"][armLabel] = {}
+                    for k,v in arm.items():
+                        if k == "label":
+                            pass
+                        else:
+                            newSite["Arms"][armLabel][k] = v
+
+                pass
+            else:
+                newSite[key] = value
+    print("sites to save is",sitesToSave)
+    print("sites are",sites)
+    project = {"sites":sitesToSave,"groups":groups,"details":[jobName,jobNumber,surveyDate,timePeriods],"classes":projectClasses}
     with open(file + ".pkl","wb") as f:
         pickle.dump(project,f)
 
@@ -310,6 +370,7 @@ def load_project_from_pickle(file):
                 download_overview_map()
                 return sites[get_all_site_details()[0][0]]
         except Exception as e:
+            print(e)
             return None
 
     return None
@@ -386,7 +447,7 @@ def export_to_excel(jobDetails):
     sht.cell(row=6,column=14).value = surveyDate.strftime("%d/%m/%Y")
     for index,cl in enumerate(projectClasses):
         sht.cell(row=index+2, column=50).value = cl[0]
-        sht.cell(row=index + 2, column=52).value = cl[2]
+        sht.cell(row=index + 2, column=52).value = cl[1]
     row = 2
 
     fnt = ImageFont.truetype("arial", size=18)
@@ -604,6 +665,11 @@ def road_orientation(angle):
         return "NW"
     elif angle>=326.25 and angle < 348.75:
         return "NNW"
+
+
+#load_project()
+#save_project_to_pickle("test.pkl")
+
 
 #centre = (55.91009503466296, -3.501137500000034)
 

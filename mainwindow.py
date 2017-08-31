@@ -13,6 +13,7 @@ import time
 baseClasses = [["Car","Car/Taxi",1],["LGV","Light Goods Vehicle",1],["OGV1","Other Goods Vehicle 1",1.5],["OGV2","Other Goods Vehicle 2",2.3],["PSV","Omnibus",2],["MC","Motorcycle",0.4],["PC","Pedal Cycle",0.2]]
 
 class MainWindow(tkinter.Tk):
+
     def __init__(self):
         self.tracsisBlue = "#%02x%02x%02x" % (20, 27, 77)
         self.tracsisGrey = "#%02x%02x%02x" % (99, 102, 106)
@@ -30,6 +31,7 @@ class MainWindow(tkinter.Tk):
         self.baseMapImage = None
         self.movingMap = False
         self.drawingArm = False
+        self.allowArmDelete = True
 
         ### set up the menu bar
 
@@ -46,31 +48,42 @@ class MainWindow(tkinter.Tk):
         self.mapPanelHasFocus = False
         f = tkinter.font.Font(family='Helvetica', size=16, weight=tkinter.font.BOLD)
         f2 = tkinter.font.Font(family='Helvetica', size=8)
-        tkinter.Label(self, text="Job Details", font=f, fg=self.tracsisBlue).grid(row=0, column=0)
+        tkinter.Label(self, text="Job Details", font=f, fg=self.tracsisBlue,relief=tkinter.GROOVE,bg="light blue").grid(row=0, column=0,sticky="nsew")
         self.detailsPanel = tkinter.Frame(self,relief=tkinter.GROOVE,borderwidth=2)
-        tkinter.Label(self.detailsPanel,text = "Job Name",anchor=tkinter.E,width = 12,fg = self.tracsisBlue).grid(row =0,column=0)
-        tkinter.Label(self.detailsPanel,text = "Job No",anchor=tkinter.E,width = 12,fg = self.tracsisBlue).grid(row =1,column=0)
-        tkinter.Label(self.detailsPanel,text = "Survey Date",anchor=tkinter.E,width = 12,fg = self.tracsisBlue).grid(row =2,column=0)
-        tkinter.Label(self.detailsPanel,text = "Times",anchor=tkinter.E,width = 12,fg = self.tracsisBlue).grid(row =3,column=0)
-        tkinter.Label(self.detailsPanel,text = "Period",anchor=tkinter.E,width = 12,fg = self.tracsisBlue).grid(row =4,column=0)
+        tkinter.Label(self.detailsPanel,text = "Job Name",width = 12,fg = self.tracsisBlue,relief = tkinter.GROOVE,borderwidth=2).grid(row =0,column=0,sticky="nsew")
+        tkinter.Label(self.detailsPanel,text = "Job No",width = 12,fg = self.tracsisBlue,relief = tkinter.GROOVE,borderwidth=2).grid(row =1,column=0,sticky="nsew")
+        tkinter.Label(self.detailsPanel,text = "Survey Date",width = 12,fg = self.tracsisBlue,relief = tkinter.GROOVE,borderwidth=2).grid(row =2,column=0,sticky="nsew")
+        tkinter.Label(self.detailsPanel,text = "Times",width = 12,fg = self.tracsisBlue,relief = tkinter.GROOVE,borderwidth=2).grid(row =3,column=0,sticky="nsew")
+        tkinter.Label(self.detailsPanel,text = "Period",width = 12,fg = self.tracsisBlue,relief = tkinter.GROOVE,borderwidth=2).grid(row =4,column=0,sticky="nsew")
 
         self.jobNameVar = tkinter.StringVar()
         self.jobNumVar = tkinter.StringVar()
         self.surveyDateVar = tkinter.StringVar()
         self.timesVar = tkinter.StringVar()
 
-        tkinter.Entry(self.detailsPanel,textvariable = self.jobNameVar,font = f2).grid(row =0,column=1)
-        tkinter.Entry(self.detailsPanel, textvariable=self.jobNumVar,font = f2).grid(row =1,column=1)
-        tkinter.Entry(self.detailsPanel, textvariable=self.surveyDateVar,font = f2).grid(row =2,column=1)
+        e = tkinter.Entry(self.detailsPanel,textvariable = self.jobNameVar,font = f2)
+        e.grid(row =0,column=1,sticky="nsew")
+        e.bind("<FocusIn>",self.disable_arm_delete)
+        e.bind("<FocusOut>",self.enable_arm_delete)
+        e = tkinter.Entry(self.detailsPanel, textvariable=self.jobNumVar,font = f2)
+        e.grid(row =1,column=1,sticky="nsew")
+        e.bind("<FocusIn>", self.disable_arm_delete)
+        e.bind("<FocusOut>", self.enable_arm_delete)
+        e = tkinter.Entry(self.detailsPanel, textvariable=self.surveyDateVar,font = f2)
+        e.grid(row =2,column=1,sticky="nsew")
+        e.bind("<FocusIn>", self.disable_arm_delete)
+        e.bind("<FocusOut>", self.enable_arm_delete)
         self.timesTextBox = tkinter.Text(self.detailsPanel,height = 3,width = 20,wrap=tkinter.WORD,font = f2)
-        self.timesTextBox.grid(row =3,column=1)
+        self.timesTextBox.grid(row =3,column=1,sticky="nsew")
+        self.timesTextBox.bind("<FocusIn>", self.disable_arm_delete)
+        self.timesTextBox.bind("<FocusOut>", self.enable_arm_delete)
         self.periodBox = ttk.Combobox(self.detailsPanel,width = 16)
         self.periodBox["values"] = ["5","15","30","60"]
-        self.periodBox.grid(row = 4,column=1)
+        self.periodBox.grid(row = 4,column=1,sticky="nsew")
 
 
-        tkinter.Label(self.detailsPanel,text = "Classes",fg = self.tracsisBlue).grid(row = 5,column = 0,columnspan = 2)
-        cols = ["Class", "Description", "PCU"]
+        tkinter.Label(self.detailsPanel,text = "Classes",font=f,fg = self.tracsisBlue,relief=tkinter.GROOVE,bg="light blue").grid(row = 5,column = 0,columnspan = 2,sticky="nsew")
+        cols = ["Class", "PCU"]
         self.classesTree = ttk.Treeview(self.detailsPanel,columns = cols,height = 8,show = "headings",selectmode = "browse")
         self.classesTree.bind("<Double-Button-1>", self.edit_class)
         self.classesTree.tag_configure("odd", background="white", foreground=self.tracsisBlue)
@@ -78,22 +91,24 @@ class MainWindow(tkinter.Tk):
         for i,c in enumerate(cols):
             self.classesTree.heading(i,text = c)
         self.classesTree.column(0, width=60, anchor=tkinter.CENTER)
-        self.classesTree.column(1, width=150, anchor=tkinter.CENTER)
-        self.classesTree.column(2, width=40, anchor=tkinter.CENTER)
-        self.classesTree.grid(row = 6,column = 0,columnspan = 2)
+        #self.classesTree.column(1, width=150, anchor=tkinter.CENTER)
+        self.classesTree.column(1, width=40, anchor=tkinter.CENTER)
+        self.classesTree.grid(row = 6,column = 0,columnspan =1,rowspan = 4)
         self.display_classes()
 
-        tkinter.Button(self.detailsPanel,text = "Add",command=self.add_class,width = 6).grid(row = 7,column = 0,columnspan = 2)
-        tkinter.Button(self.detailsPanel, text="Delete", command=self.delete_class,width = 6).grid(row=8, column=0, columnspan=2)
+        tkinter.Button(self.detailsPanel,text = "Add",command=self.add_class,width = 6).grid(row = 6,column = 1,sticky="nsw")
+        tkinter.Button(self.detailsPanel, text="Delete", command=self.delete_class,width = 6).grid(row=7, column=1,sticky="nsw")
+        tkinter.Button(self.detailsPanel,text = "UP",command=self.move_class_up,width = 6).grid(row = 8,column = 1,sticky="nsw")
+        tkinter.Button(self.detailsPanel, text="DOWN", command=self.move_class_down,width = 6).grid(row=9, column=1,sticky="nsw")
 
         ####
         ### Groups
         ###
 
 
-        tkinter.Label(self.detailsPanel, text="Groups", font=f, fg=self.tracsisBlue).grid(row = 9,column = 0,columnspan = 2)
+        tkinter.Label(self.detailsPanel, text="Groups", font=f, fg=self.tracsisBlue,relief=tkinter.GROOVE,bg="light blue").grid(row = 10,column = 0,columnspan = 4,sticky="nsew")
         cols = ["Group"]
-        self.groupsTree = ttk.Treeview(self.detailsPanel, columns=cols, height=8, show="headings", selectmode="browse")
+        self.groupsTree = ttk.Treeview(self.detailsPanel, columns=cols, height=7, show="headings", selectmode="browse")
         self.groupsTree.bind("<<TreeviewSelect>>", self.display_group)
         self.groupsTree.bind("<Double-Button-1>",self.delete_group)
         self.groupsTree.bind("<Button-3>", self.show_group_map)
@@ -102,32 +117,24 @@ class MainWindow(tkinter.Tk):
         for i, c in enumerate(cols):
             self.groupsTree.heading(i, text=c)#
         self.groupsTree.column(0, width=100, anchor=tkinter.CENTER)
-        self.groupsTree.grid(row = 10,column = 0,columnspan = 2)
+        self.groupsTree.grid(row = 11,column = 0)
         #self.groupsTree.insert("","end",values= ["Group 1"],tags =("tree", "odd") )
 
         self.groupList = tkinter.Listbox(self.detailsPanel)
         self.groupList.bind("<Double-Button-1>", self.delete_site_from_group)
         self.groupList.bind("<Button-3>", self.show_group_map)
-        self.groupList.grid(row = 12,column = 0,columnspan = 2)
-        tkinter.Button(self.detailsPanel,text = "Add",command=self.add_group,width = 6).grid(row = 11,column = 0,columnspan = 2)
+        self.groupList.grid(row = 11,column = 1,sticky = "ns")
+        tkinter.Button(self.detailsPanel,text = "Add",command=self.add_group,width = 6).grid(row = 12,column = 0,columnspan = 1)
         #tkinter.Button(self.detailsPanel, text="Delete", command=self.delete_class,width = 6).grid(row=13, column=0, columnspan=2)
+
+
 
         self.winSpawned = False
         self.detailsPanel.grid(row=1,column=0,sticky="n")
 
 
-        #self.currentSite = projectmanager.load_project()
-        #projectDetails = projectmanager.get_project_details()
-        #self.jobNameVar.set(projectDetails[0])
-        #self.jobNumVar.set(projectDetails[1])
-        #self.surveyDateVar.set(datetime.datetime.strftime(projectDetails[2],"%d/%m/%Y"))
-        #self.timesTextBox.insert("0.0",projectDetails[3])
-        #self.focus_force()
-        #self.armLine = None
-
-        #self.mapLabel = tkinter.Label(self,text = self.currentSite["Site Name"],font=f,fg=self.tracsisBlue)
-        self.mapLabel = tkinter.Label(self, text="", font=f, fg=self.tracsisBlue)
-        self.mapLabel.grid(row = 0,column = 1)
+        self.mapLabel = tkinter.Label(self, text="", font=f, fg=self.tracsisBlue,bg="light blue",relief=tkinter.GROOVE,borderwidth=2)
+        self.mapLabel.grid(row = 0,column = 1,sticky="nsew")
         tkinter.Button(self,text="Export",command=self.export_to_excel).grid(row=4,column=0)
         frame = tkinter.Frame(self)
         tkinter.Button(frame, text="<", command=lambda:self.decrement_map(None),width = 4,height = 2).grid(row=0, column=0,padx = 5,rowspan=2)
@@ -141,7 +148,8 @@ class MainWindow(tkinter.Tk):
 
 
 
-        tkinter.Label(self, text="Overview", font=f, fg=self.tracsisBlue).grid(row=0, column=2)
+
+        tkinter.Label(self, text="Overview", font=f, fg=self.tracsisBlue,bg="light blue",relief=tkinter.GROOVE,borderwidth=2).grid(row=0, column=2,sticky="nsew")
         self.overviewPanel = tkinter.Canvas(self,bg="white",relief=tkinter.RAISED,borderwidth=1)
         self.overviewPanel.bind("<Button-1>",self.overview_map_clicked)
         self.overviewPanel.grid(row = 1,column = 2)
@@ -154,10 +162,12 @@ class MainWindow(tkinter.Tk):
         self.dragInfo ={}
         self.dragInfo["Widget"] = None
         self.mapPanel.grid(row=1,column=1,rowspan=3)
-        self.mapPanel.bind("<Double-Button-1>",self.add_arm_icon)
+        #self.mapPanel.bind("<Double-Button-1>",self.add_arm_icon)
         self.mapPanel.bind("<Button-1>",self.on_press_to_move)
         self.mapPanel.bind("<Button-3>", self.on_right_click_to_move_map)
-
+        self.bind("<Control_L>",self.control_pressed)
+        self.bind("<KeyRelease-Control_L>",self.control_released)
+        self.controlDown = False
         self.mapPanel.bind("<ButtonRelease-1>",self.onReleaseToMove)
         self.mapPanel.bind("<ButtonRelease-3>", self.onReleaseRightClickToMove)
         print("binding left and right")
@@ -165,7 +175,7 @@ class MainWindow(tkinter.Tk):
         self.bind("<Right>", self.increment_map)
         self.mapPanel.bind("<Enter>",self.mouse_over_map_panel)
         self.mapPanel.bind("<Leave>",self.mouse_leave_map_panel)
-
+        self.activity = None
         #self.load_map_panel_map(self.currentSite["Site Name"])
         #self.load_overview_map()
         #self.currentTag = ""
@@ -255,6 +265,7 @@ class MainWindow(tkinter.Tk):
         #self.mapPanel.config(highlightbackground="red")
         #.mapPanelHasFocus = True
         #self.mapPanel.focus_set()
+        self.groupList.focus_force()
 
     def mouse_leave_map_panel(self,event):
         print("mouse left")
@@ -268,6 +279,7 @@ class MainWindow(tkinter.Tk):
         circleRadius = 10
         self.overviewDetails = projectmanager.get_overview_map()
         self.baseMapImage = self.overviewDetails[0]
+        #self.overviewPanel.delete(tkinter.ALL)
         #self.overviewPanel.create_image(5, 5, image=self.overviewDetails[0], anchor=tkinter.NW, tags=("map",))
         self.overviewPanel.configure(width=800, height=800)
         self.update_groups_tree()
@@ -422,36 +434,34 @@ class MainWindow(tkinter.Tk):
     ###  Functions to deal with adding, deleting and editing vehicle classes
     ###
 
-    def spawn_edit_window(self,className = "",desc = "",pcu = ""):
+    def spawn_edit_window(self,className = "",pcu = ""):
+        self.disable_arm_delete(event=None)
         if not self.winSpawned:
             self.winSpawned = True
             self.win = tkinter.Toplevel(self)
             self.win.protocol("WM_DELETE_WINDOW", self.edit_window_closed)
             self.classesTree.configure(selectmode = "none")
             tkinter.Label(self.win, text="Class", anchor=tkinter.E, width=12).grid(row=0, column=0)
-            tkinter.Label(self.win, text="Description", anchor=tkinter.E, width=12).grid(row=1, column=0)
-            tkinter.Label(self.win, text="PCU", anchor=tkinter.E, width=12).grid(row=2, column=0)
-
+            tkinter.Label(self.win, text="PCU", anchor=tkinter.E, width=12).grid(row=1, column=0)
             self.classVar = tkinter.StringVar()
             self.descVar = tkinter.StringVar()
             self.PCUVar = tkinter.StringVar()
             self.classVar.set(className)
-            self.descVar.set(desc)
             self.PCUVar.set(pcu)
             tkinter.Entry(self.win, textvariable=self.classVar).grid(row=0, column=1,columnspan =2)
-            tkinter.Entry(self.win, textvariable=self.descVar).grid(row=1, column=1,columnspan =2)
-            tkinter.Entry(self.win, textvariable=self.PCUVar).grid(row=2, column=1,columnspan =2)
-
+            tkinter.Entry(self.win, textvariable=self.PCUVar).grid(row=1, column=1,columnspan =2)
             tkinter.Button(self.win, text="Cancel",command=self.edit_window_closed).grid(row=3, column=1)
             tkinter.Button(self.win, text="Save",command=self.edit_window_saved,width=6).grid(row=3, column=2)
 
     def edit_window_closed(self):
+        self.enable_arm_delete(event=None)
         self.winSpawned = False
         self.classesTree.configure(selectmode="browse")
         self.win.destroy()
 
     def edit_window_saved(self):
-        values = [self.classVar.get(), self.descVar.get(), self.PCUVar.get()]
+        self.enable_arm_delete(event=None)
+        values = [self.classVar.get(), self.PCUVar.get()]
         if self.addClass:
             projectmanager.add_class(values)
         else:
@@ -472,7 +482,7 @@ class MainWindow(tkinter.Tk):
             return
         curItem = widget.selection()[0]
         values = widget.item(curItem)["values"]
-        self.spawn_edit_window(className=values[0],desc=values[1],pcu=values[2])
+        self.spawn_edit_window(className=values[0],pcu=values[1])
 
     def add_class(self):
         self.addClass = True
@@ -496,9 +506,45 @@ class MainWindow(tkinter.Tk):
         self.classesTree.delete(*self.classesTree.get_children())
         for i,row in enumerate(projectmanager.get_classes()):
             if i % 2 == 0:
-                self.classesTree.insert("", "end",iid=i, values=row, tags=("tree", "even"))
+                self.classesTree.insert("", "end",iid=str(i), values=row, tags=("tree", "even"))
             else:
-                self.classesTree.insert("", "end",iid=i, values=row, tags=("tree", "odd"))
+                self.classesTree.insert("", "end",iid=str(i), values=row, tags=("tree", "odd"))
+
+    def move_class_up(self):
+        print("selection is",self.classesTree.selection())
+        if self.classesTree.selection() == "":
+            return
+        try:
+            curItem = self.classesTree.selection()[0]
+            print("curitem is",curItem)
+            self.classesTree.delete(curItem)
+            if "I0" in curItem:
+                index = 0
+            else:
+                index = int(curItem)
+        except Exception as e:
+            pass
+        index = projectmanager.move_class_up(index)
+
+        self.display_classes()
+        self.classesTree.selection_set(str(index))
+
+    def move_class_down(self):
+        if self.classesTree.selection() == "":
+            return
+        try:
+            curItem = self.classesTree.selection()[0]
+            print("curitem is",curItem)
+            self.classesTree.delete(curItem)
+            if "I0" in curItem:
+                index = 0
+            else:
+                index = int(curItem)
+        except Exception as e:
+            pass
+        index =projectmanager.move_class_down(index)
+        self.display_classes()
+        self.classesTree.selection_set(str(index))
 
 
     ########################################################################################################################
@@ -531,6 +577,7 @@ class MainWindow(tkinter.Tk):
         if file == "":
             return
         projectmanager.save_project_to_pickle(file)
+        messagebox.showinfo(message="Save Complete")
 
     def load_project_from_pickle(self):
         file = filedialog.askopenfilename()
@@ -552,6 +599,7 @@ class MainWindow(tkinter.Tk):
         self.jobNameVar.set(projectDetails[0])
         self.jobNumVar.set(projectDetails[1])
         self.surveyDateVar.set(datetime.datetime.strftime(projectDetails[2], "%d/%m/%Y"))
+        self.timesTextBox.delete("0.0",tkinter.END)
         self.timesTextBox.insert("0.0", projectDetails[3])
         self.focus_force()
         self.armLine = None
@@ -621,6 +669,7 @@ class MainWindow(tkinter.Tk):
     def redraw_map_with_labels(self):
         self.mapPanel.delete(tkinter.ALL)
         self.load_map_panel_map(self.currentSite["Site Name"])
+        self.load_overview_map()
         self.mapLabel.configure(text=self.currentSite["Site Name"])
         self.armLineStartingCoords = None
         self.armList = []
@@ -628,8 +677,17 @@ class MainWindow(tkinter.Tk):
         self.dragInfo = {}
         for key, item in self.currentSite["Arms"].items():
             print("drawing",key,item)
+            self.currentTag = key
             self.draw_arm_label(key, item["coords"][0], item["coords"][1])
             self.redraw_arm_line(item["line coords"])
+            e = tkinter.Entry(self, width=20)
+            e.insert(0, self.currentSite["Arms"][key]["road"])
+            e.bind("<Return>", lambda event, x=self.currentTag: self.update_road_name(event, x))
+            e.bind("<FocusIn>",lambda event:self.disable_arm_delete(event,focus=True))
+            e.bind("<FocusOut>", self.enable_arm_delete)
+            self.currentSite["Arms"][key]["label"] = e
+            coords = self.currentSite["Arms"][key]["labelcoords"]
+            self.mapPanel.create_window((coords[0] , coords[1] ), window=e,tags =(key,"label"))
             self.armList.append(key)
         self.armList = sorted(self.armList)
         print("armlist is",self.armList)
@@ -656,6 +714,28 @@ class MainWindow(tkinter.Tk):
     ### that we have added to a particular map
     ###
 
+    def control_pressed(self,event):
+        self.controlDown = True
+
+    def control_released(self,event):
+        self.controlDown = False
+
+    def draw_arm_label(self,armName,x,y):
+        print("Drawing a label at ",x,y)
+        f = tkinter.font.Font(family='Helvetica', size=self.fontsize, weight=tkinter.font.BOLD)
+        self.mapPanel.create_oval(x-self.armLabelRadius,y-self.armLabelRadius,x+self.armLabelRadius,y+self.armLabelRadius,width = 3,outline="red",tags=str(armName))
+        self.mapPanel.create_text((x,y),text=armName,font=f,tags=str(armName))
+        self.currentTag = str(armName)
+
+    def pick_up_line(self):
+        self.unbind_all("<BackSpace>")
+        self.unbind_all("<Delete>")
+        print("unbinding left and right in add arm icon")
+        self.unbind("<Left>")
+        self.unbind("<Right>")
+        #self.mapPanel.bind("<Button-1>", self.finish_arm_line)
+        self.mapPanel.bind("<Motion>", self.draw_arm_line)
+
     def add_arm_icon(self,event):
         print("currentsite is",self.currentSite)
         if self.movingMap == True:
@@ -679,17 +759,9 @@ class MainWindow(tkinter.Tk):
         #self.update()
         self.armLineStartingCoords = (x,y)
         self.armList.append(armName)
-        self.mapPanel.bind("<Button-1>", self.finish_arm_line)
+        #self.mapPanel.bind("<Button-1>", self.finish_arm_line)
         self.mapPanel.bind("<Motion>", self.draw_arm_line)
         print("armlist is",self.armList)
-
-    def draw_arm_label(self,armName,x,y):
-
-        print("Drawing a label at ",x,y)
-        f = tkinter.font.Font(family='Helvetica', size=self.fontsize, weight=tkinter.font.BOLD)
-        self.mapPanel.create_oval(x-self.armLabelRadius,y-self.armLabelRadius,x+self.armLabelRadius,y+self.armLabelRadius,width = 3,outline="red",tags=str(armName))
-        self.mapPanel.create_text((x,y),text=armName,font=f,tags=str(armName))
-        self.currentTag = str(armName)
 
     def redraw_arm_line(self,lineCoords):
         self.armLine = self.mapPanel.create_line(lineCoords, fill="red", width=3, tags=(self.currentTag, "line"))
@@ -698,12 +770,15 @@ class MainWindow(tkinter.Tk):
         self.armLine = None
 
     def delete_most_recent_arm(self,event):
+        if not self.allowArmDelete:
+            return
         print("deleting arm")
-
         if self.armList == []:              return
         print("armlist is",self.armList)
         armName = (self.armList.pop(-1))
+        self.currentSite["Arms"][armName]["label"].destroy()
         self.mapPanel.delete(armName)
+        print("armlist is", self.armList)
         projectmanager.delete_arm_from_site(self.currentSite["Site Name"],armName)
         projectmanager.decrement_arm_label()
 
@@ -714,17 +789,13 @@ class MainWindow(tkinter.Tk):
         self.unbind("<Right>")
         winX = event.x - self.mapPanel.canvasx(0)
         winY = event.y - self.mapPanel.canvasy(0)
-        if self.armLine is not None:
-            tags = self.mapPanel.gettags(self.armLine)
-            self.currentTag = tags[0]
-            allwidgetsWithTag = self.mapPanel.find_withtag(tags[0])
-            x1,y1,x2,y2 = self.mapPanel.coords(allwidgetsWithTag[0])
-            centre_X = x1 + 15
-            centre_Y = y1 + 15
-            #print("centre of circle",centre_X,centre_Y)
-            self.mapPanel.delete(self.armLine)
-        else:
-            centre_X,centre_Y = self.armLineStartingCoords
+
+        allwidgetsWithTag = self.mapPanel.find_withtag(self.currentTag)
+        x1,y1,x2,y2 = self.mapPanel.coords(allwidgetsWithTag[0])
+        centre_X = x1 + 15
+        centre_Y = y1 + 15
+        self.mapPanel.delete(self.armLine)
+
         dx = winX-centre_X
         dy = winY-centre_Y
         if dy != 0:
@@ -747,17 +818,14 @@ class MainWindow(tkinter.Tk):
             newY = centre_Y - offsetY
             newX = centre_X - offsetX
         self.armLine = self.mapPanel.create_line((newX,newY),(winX,winY),fill="blue",width=3,tags = (self.currentTag,"line"))
-        self.dragInfo["Widget"] = self.armLine
+        #self.dragInfo["Widget"] = self.armLine
 
-    def finish_arm_line(self,event):
+    def finish_arm_line(self):
+        print("on entering finishing arm line, all widgets with tag",self.currentTag,"are",self.mapPanel.find_withtag(self.currentTag))
         if self.armLine is None:
             self.drawingArm = False
             return
-        winX = event.x - self.mapPanel.canvasx(0)
-        winY = event.y - self.mapPanel.canvasy(0)
         self.mapPanel.unbind("<Motion>")
-        self.mapPanel.bind("<Double-Button-1>", self.add_arm_icon)
-        self.mapPanel.bind("<Button-1>", self.on_press_to_move)
         print("in finish arm line, self.armline widget is",self.armLine)
         print("tags are ",self.mapPanel.gettags(self.armLine))
         self.mapPanel.itemconfigure(self.armLine,fill = "red")
@@ -794,17 +862,69 @@ class MainWindow(tkinter.Tk):
             print("orientation",270 + (90-np.degrees(theta)))
             orientation = 270 + (90-np.degrees(theta))
         #projectmanager.edit_arm_orientation(self.currentSite["Site Name"],self.currentTag,orientation)
+        print("self.currenttag is",self.currentTag)
         self.currentSite["Arms"][self.currentTag]["orientation"] = orientation
         self.currentSite["Arms"][self.currentTag]["line coords"] = self.mapPanel.coords(self.armLine)
-        print("in mainwindow, site is now ", self.currentSite)
-        print("line coords are ",self.mapPanel.coords(self.armLine))
-        self.dragInfo["tag"] = self.mapPanel.gettags(self.armLine)[0]
+        #print("in mainwindow, site is now ", self.currentSite)
+        #print("line coords are ",self.mapPanel.coords(self.armLine))
+        #self.dragInfo["tag"] = self.mapPanel.gettags(self.armLine)[0]
         self.armLine = None
         self.bind_all("<BackSpace>", self.delete_most_recent_arm)
         self.bind_all("<Delete>", self.delete_most_recent_arm)
         self.pickedUpLine = False
         self.drawingArm = False
+        mag = ((dx**2) + (dy**2)) **(1/2)
+        unit_x = dx/mag
+        unit_y = dy/mag
+        if orientation > 250 and orientation < 290:
+            x = coords[0] +(100*unit_x)
+        elif orientation > 70 and orientation < 110:
+            x = coords[0] +(100 *unit_x)
+        else:
+            x = coords[0] + (80 * unit_x)
+        y = coords[1] + (80 * unit_y)
+
+        e = tkinter.Entry(self,width = 20)
+        e.insert(0,self.currentSite["Arms"][self.currentTag]["road"])
+        e.bind("<Return>",lambda event,x = self.currentTag:self.update_road_name(event,x))
+        e.bind("<FocusIn>",lambda event:self.disable_arm_delete(event,focus=True))
+        e.bind("<FocusOut>",self.enable_arm_delete)
+        print("just before deliting widget,finishing arm line all widgets with tag",self.currentTag,"are",self.mapPanel.find_withtag(self.currentTag))
+        try:
+            print("type of label is",type(self.currentSite["Arms"][self.currentTag]["label"]))
+            self.currentSite["Arms"][self.currentTag]["label"].destroy()
+            self.mapPanel.delete(self.mapPanel.find_withtag(self.currentTag)[2])
+        except Exception as err:
+            # it didnt exist, so do nothing
+            print("error deleteing label")
+        self.currentSite["Arms"][self.currentTag]["label"] = e
+        self.currentSite["Arms"][self.currentTag]["labelcoords"] = (x,y)
+        self.mapPanel.create_window((x,y),window=e,tags =(self.currentTag,"label"))
+        print("finishing arm line all widgets with tag",self.currentTag,"are",self.mapPanel.find_withtag(self.currentTag))
         #self.focus_set()
+
+    def disable_arm_delete(self,event,focus=False):
+        self.allowArmDelete = False
+        if focus:
+            ###
+            ### we need to lose focus of the job details text boxes when we go over the map panel, so that
+            ### users can delete arms with the Delete key. But if we are editing road names, we dont want to lose focus
+            ### when the user mouses over the map panel, so we disable that
+            ###
+            event.widget.config(bg="white")
+            self.mapPanel.unbind("<Enter>")
+            self.mapPanel.unbind("<Leave>")
+
+    def enable_arm_delete(self,event):
+        self.allowArmDelete = True
+        self.mapPanel.bind("<Enter>", self.mouse_over_map_panel)
+        self.mapPanel.bind("<Leave>", self.mouse_leave_map_panel)
+
+    def update_road_name(self,event,armLabel):
+        print(event.widget.get(),armLabel)
+        event.widget.config(bg="light blue")
+        self.currentSite["Arms"][armLabel]["road"] = event.widget.get()
+        self.groupList.focus_force()
 
     def on_right_click_to_move_map(self,event):
         if self.drawingArm == True:
@@ -862,106 +982,85 @@ class MainWindow(tkinter.Tk):
         self.dragInfo["yCoord"] = winY
 
     def on_press_to_move(self,event):
-        if self.movingMap == True:
-            print("moving map, not allowing left click functionality")
-            return
-        winX = event.x - self.mapPanel.canvasx(0)
-        winY = event.y - self.mapPanel.canvasy(0)
-        print("clicked at", winX, winY)
-        self.dragInfo["Widget"] = self.mapPanel.find_closest(event.x, event.y, halo=10)[0]
-        print("setting draginfo widget to",self.dragInfo["Widget"])
-        self.dragInfo["xCoord"] = winX
-        self.dragInfo["yCoord"] = winY
-        self.dragInfo["tag"] = -1
-        tags = self.mapPanel.gettags(self.dragInfo["Widget"])
-        allwidgetsWithTag = self.mapPanel.find_withtag(tags[0])
-        if "line" in (tags):
-            self.pickedUpLine = True
-            self.mapPanel.unbind("<ButtonRelease>")
-            print("picked up line,widget",self.dragInfo["Widget"])
-            print("tags on line are",tags)
-            print("allwidgets with tag",tags[0],allwidgetsWithTag)
-            self.armLine = self.dragInfo["Widget"]
-            self.mapPanel.bind("<Motion>", self.draw_arm_line)
-            self.mapPanel.bind("<Button-1>", self.finish_arm_line)
-            self.mapPanel.unbind_all("<ButtonRelease>")
-
-        elif "map" in tags:
-            print("clicked on the map")
-            self.dragInfo["tag"] = "map"
-            return
+        print("self.activity is",self.activity)
+        if self.activity is None:
+            if self.controlDown:
+                self.activity = "drawing line"
+                x = event.x - self.mapPanel.canvasx(0)
+                y = event.y - self.mapPanel.canvasy(0)
+                if self.currentSite["Arms"] == {}:
+                    armName = "A"
+                else:
+                    armName = chr(ord(sorted(self.currentSite["Arms"].keys())[-1]) + 1)
+                projectmanager.edit_arm(self.currentSite["Site Name"], armName, x, y)
+                self.draw_arm_label(armName, x, y)
+                self.currentTag = armName
+                self.armLineStartingCoords = (x, y)
+                self.armList.append(armName)
+                self.pick_up_line()
+            else:
+                selectedWidget = self.mapPanel.find_closest(event.x, event.y, halo=10)[0]
+                tags = self.mapPanel.gettags(selectedWidget)
+                allwidgetsWithTag = self.mapPanel.find_withtag(tags[0])
+                self.currentTag = tags[0]
+                print("tags of closest widget are",tags,allwidgetsWithTag)
+                if "map" in tags:
+                    return
+                if "line" in tags:
+                    self.activity = "drawing line"
+                    self.armLine = selectedWidget
+                    self.pick_up_line()
+                else:
+                    # clicked a circle
+                    print("clicked a circle")
+                    self.activity = "circle"
+                    self.mapPanel.bind("<B1-Motion>", self.onMovement)
+                    self.mapPanel.bind("<ButtonRelease>", self.onReleaseToMove)
+                    self.mapPanel.itemconfigure(allwidgetsWithTag[0], outline="blue")
+                    self.mapPanel.itemconfigure(allwidgetsWithTag[1], fill="blue")
+                    self.widgetCoords = self.mapPanel.coords(selectedWidget)
+                    print("widgetcoords are",self.widgetCoords)
+                self.mapPanel.itemconfigure(allwidgetsWithTag[2], fill="blue")
         else:
-            print("clicked on a circle")
-            self.mapPanel.bind("<B1-Motion>", self.onMovement)
-            self.mapPanel.bind("<ButtonRelease>", self.onReleaseToMove)
-            self.mapPanel.itemconfigure(allwidgetsWithTag[0], outline="blue")
-            self.mapPanel.itemconfigure(allwidgetsWithTag[1], fill="blue")
-        print("-"*200)
-        self.dragInfo["tag"] = tags[0]
-        print("setting draginfo tag to",self.dragInfo["tag"])
-        self.mapPanel.itemconfigure(allwidgetsWithTag[2], fill="blue")
+            if self.activity == "drawing line":
+                print("clicked while drawing line active")
+                "<motion"
+                self.finish_arm_line()
+                self.activity = None
 
     def onReleaseToMove(self, event):  # reset data on release
-        print("draginfo  is",self.dragInfo)
-        if self.pickedUpLine:
-            print("picked up line is true")
-            return
-        if self.dragInfo["Widget"] is None:
-            print("no widget selected")
-            return
-        winX = event.x - self.mapPanel.canvasx(0)
-        winY = event.y - self.mapPanel.canvasy(0)
-        if self.dragInfo["tag"] == "map":
-            self.dragInfo["Widget"] = None
-            self.dragInfo["xCoord"] = 0
-            self.dragInfo["yCoord"] = 0
-            self.dragInfo["tag"] = -1
-            return
-        print("in onreleasetomove, self.dragInfo[Widget] is",self.dragInfo["Widget"])
-        tags = self.mapPanel.gettags(self.dragInfo["Widget"])
-        print("tags are ",tags)
-        allwidgetsWithTag = self.mapPanel.find_withtag(tags[0])
-        print("allwidgets with tag are", allwidgetsWithTag)
-        self.mapPanel.itemconfigure(allwidgetsWithTag[0], outline="red")
-        self.mapPanel.itemconfigure(allwidgetsWithTag[1], fill="black")
-        self.mapPanel.itemconfigure(allwidgetsWithTag[2], fill="red")
-        self.dragInfo["Widget"] = None
-        self.dragInfo["xCoord"] = 0
-        self.dragInfo["yCoord"] = 0
-
-        self.mapPanel.unbind("<B1-Motion>")
-        self.mapPanel.unbind("<ButtonRelease>")
-        print("binding left and right in onrelease to move")
-        self.bind("<Left>", self.decrement_map)
-        self.bind("<Right>", self.increment_map)
-        self.currentSite["Arms"][self.dragInfo["tag"]]["line coords"] = self.mapPanel.coords(allwidgetsWithTag[2])
-        coords = self.mapPanel.coords(allwidgetsWithTag[0])
-        self.currentSite["Arms"][self.dragInfo["tag"]]["coords"] = (coords[0]+self.armLabelRadius,coords[1]+self.armLabelRadius)
-        self.dragInfo["tag"] = -1
-        print("finished onreleasetomove")
+        if self.activity == "circle":
+            print("in onreleasetomove, self.currenttag is",self.currentTag)
+            allwidgetsWithTag = self.mapPanel.find_withtag(self.currentTag)
+            print("allwidgets with tag are", allwidgetsWithTag)
+            self.mapPanel.itemconfigure(allwidgetsWithTag[0], outline="red")
+            self.mapPanel.itemconfigure(allwidgetsWithTag[1], fill="black")
+            self.mapPanel.itemconfigure(allwidgetsWithTag[2], fill="red")
+            self.mapPanel.unbind("<B1-Motion>")
+            self.mapPanel.unbind("<ButtonRelease>")
+            self.currentSite["Arms"][self.currentTag]["line coords"] = self.mapPanel.coords(allwidgetsWithTag[2])
+            print(",line coords are",self.currentSite["Arms"][self.currentTag]["line coords"])
+            coords = self.mapPanel.coords(allwidgetsWithTag[0])
+            self.currentSite["Arms"][self.currentTag]["coords"] = (coords[0]+self.armLabelRadius,coords[1]+self.armLabelRadius)
+            self.currentSite["Arms"][self.currentTag]["labelcoords"] = self.mapPanel.coords(allwidgetsWithTag[3])
+            print("coords of label are",self.mapPanel.coords(allwidgetsWithTag[3]))
+            self.activity = None
+            print("finished onreleasetomove")
 
     def onMovement(self, event):
-        if self.dragInfo["tag"] == -1:
-            return
-
-        print("tag is",self.dragInfo["tag"])
-
-
+        print("tag is",self.currentTag)
         winX = event.x - self.mapPanel.canvasx(0)
         winY = event.y - self.mapPanel.canvasy(0)
         print("mouse is now at",winX,winY)
-        newX = winX - self.dragInfo["xCoord"]
-        newY = winY - self.dragInfo["yCoord"]
-
-        if self.dragInfo["tag"] == "map":
+        newX = winX - self.widgetCoords[0]
+        newY = winY - self.widgetCoords[1]
+        if self.activity == "map":
             for child in self.mapPanel.find_all():
                 self.mapPanel.move(child, newX, newY)
         else:
-
-            for child in self.mapPanel.find_withtag(self.dragInfo["tag"]):
+            for child in self.mapPanel.find_withtag(self.currentTag):
                 self.mapPanel.move(child, newX, newY)
-        self.dragInfo["xCoord"] = winX
-        self.dragInfo["yCoord"] = winY
+            self.widgetCoords = (winX,winY)
 
     ########################################################################################################
 
