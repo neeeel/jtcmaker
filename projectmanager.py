@@ -28,44 +28,58 @@ jobNumber = ""
 jobName = ""
 surveyDate= ""
 timePeriods  = ""
+project = None
 
 
 
 ####################################################################################################
 ###
 ### Deal with classes
+###
+####################################################################################################
 
-def get_classes():
-    return projectClasses
+def get_classes(surveyIndex):
+    surveyType = ["J","Q","P"][surveyIndex]
+    return project["surveys"][surveyType]["classes"]
 
-def delete_class(index):
-    projectClasses.pop(index)
+def delete_class(index,surveyIndex):
+    surveyType = ["J", "Q", "P"][surveyIndex]
+    project["surveys"][surveyType]["classes"].pop(index)
+    return len(project["surveys"][surveyType]["classes"])
 
-def add_class(vals):
-    projectClasses.append(vals)
+def add_class(vals,surveyIndex):
+    surveyType = ["J", "Q", "P"][surveyIndex]
+    project["surveys"][surveyType]["classes"].append(vals)
+    return len(project["surveys"][surveyType]["classes"])
 
-def edit_class(vals,index):
-    projectClasses[index] = vals
+def edit_class(vals,index,surveyIndex):
+    surveyType = ["J", "Q", "P"][surveyIndex]
+    project["surveys"][surveyType]["classes"][index] = vals
+    return len(project["surveys"][surveyType]["classes"])
 
-def move_class_up(index):
+def move_class_up(index,surveyIndex):
+    surveyType = ["J", "Q", "P"][surveyIndex]
     if index == 0:
         return index
-    temp = projectClasses[index]
-    projectClasses[index] = projectClasses[index-1]
-    projectClasses[index - 1] = temp
+    temp = project["surveys"][surveyType]["classes"][index]
+    project["surveys"][surveyType]["classes"][index] = project["surveys"][surveyType]["classes"][index-1]
+    project["surveys"][surveyType]["classes"][index - 1] = temp
     return index -1
 
-def move_class_down(index):
-    if index == len(projectClasses)-1:
+def move_class_down(index,surveyIndex):
+    surveyType = ["J", "Q", "P"][surveyIndex]
+    if index == len(project["surveys"][surveyType]["classes"])-1:
         return index
-    temp = projectClasses[index]
-    projectClasses[index] = projectClasses[index+1]
-    projectClasses[index + 1] = temp
+    temp = project["surveys"][surveyType]["classes"][index]
+    project["surveys"][surveyType]["classes"][index] = project["surveys"][surveyType]["classes"][index+1]
+    project["surveys"][surveyType]["classes"][index + 1] = temp
     return index + 1
 
 ####################################################################################################
 ###
 ### Deal with groups
+###
+####################################################################################################
 
 def add_group():
     global groupCount, groups
@@ -100,67 +114,68 @@ def get_groups():
 
 ####################################################################################################
 ###
-### Deal with sites
+###  Deal with Project
+###
+####################################################################################################
 
-def load_sites():
-    pass
 
-def save_sites():
-    pass
+####################################################################################################
+###
+###  Deal with sites
+###
+####################################################################################################
 
-def decrement_arm_label():
-    global current_label
-    ###
-    ### a label was deleted in the user interface, need to decrement the counter so we give the correct letter
-    ### when requested
-    current_label-=1
+
+def get_site_by_order(index):
+    for _,site in project["sites"].items():
+        if site["order"] == index:
+            return site
+    return None
+
+
 
 def change_site_image_type(val,site):
     if val ==0:
         val  = "roadmap"
     else:
         val = "satellite"
-    if sites[site]["imageType"] != val:
-        x,y = sites[site]["latlon"]
-        map = mapmanager.load_high_def_map_with_labels(x, y, sites[site]["zoom"],imageType=val)
-        map.save(str(sites[site]["Site Name"]) + ".png")
-        sites[site]["imageType"] = val
+    if site["imageType"] != val:
+        x,y = site["latlon"]
+        map = mapmanager.load_high_def_map_with_labels(x, y, site["zoom"],imageType=val)
+        map.save(str(site["Site Name"]) + ".png")
+        site["imageType"] = val
+        site["image"] = map.resize((800, 800), Image.ANTIALIAS)
+
 
 def change_site_zoom(site,value):
     if value == "+":
-        sites[site]["zoom"] += 1
+        site["zoom"] += 1
     else:
-        sites[site]["zoom"]-=1
-    map = mapmanager.load_high_def_map_with_labels(sites[site]["latlon"][0], sites[site]["latlon"][1], sites[site]["zoom"],imageType=sites[site]["imageType"])
-    map.save(str(sites[site]["Site Name"]) + ".png")
-    armlist = [k for k, item in sites[site]["Arms"].items()]
+        site["zoom"]-=1
+    map = mapmanager.load_high_def_map_with_labels(site["latlon"][0], site["latlon"][1], site["zoom"],imageType=site["imageType"])
+    map.save(str(site["Site Name"]) + ".png")
+    site["image"] = map.resize((800, 800), Image.ANTIALIAS)
+    armlist = [k for k, item in site["Arms"].items()]
     for arm in armlist:
-        delete_arm_from_site(sites[site]["Site Name"], arm)
+        delete_arm_from_site(site["Site Name"], arm)
 
 def change_site_centre_point(site,x,y):
     ###
     ### x,y are the deltas that the map has changed by
     ###
-    global siteDetails
     print("changing site centre point,movement was",x,y)
     currentCentre = sites[site]["latlon"]
     zoom = sites[site]["zoom"]
     newCentre = mapmanager.get_lat_lon_from_x_y(currentCentre,(640-(x*800/1280)),(640-(y*800/1280)),zoom,size=1280)
     print("new centre is ",newCentre)
-    sites[site]["latlon"] = newCentre
-    print(siteDetails)
-    #print(sites)
-    siteDetails.loc[siteDetails["Site Name"] == site,"Lat"] = newCentre[0]
-    siteDetails.loc[siteDetails["Site Name"] == site,"Lon"] = newCentre[1]
-    #print("after change of site coords","-"*100)
-    print(siteDetails)
+    site["latlon"] = newCentre
     download_overview_map()
     map = mapmanager.load_high_def_map_with_labels(sites[site]["latlon"][0], sites[site]["latlon"][1], sites[site]["zoom"],imageType =sites[site]["imageType"])
     map.save(str(sites[site]["Site Name"]) + ".png")
-
+    site["image"] = map.resize((800, 800), Image.ANTIALIAS)
     armlist = [k for k, item in sites[site]["Arms"].items()]
     for arm in armlist:
-        delete_arm_from_site(sites[site]["Site Name"],arm)
+        delete_arm_from_site(site["Site Name"],arm)
 
 def change_site_group(site,group):
     sites[site]["group"] = group
@@ -183,6 +198,23 @@ def delete_arm_from_site(siteName,armName):
         pass
         ### something went wrong, and the arm didnt exist
     print("after delete, site is", site)
+
+
+
+####################################################################################################
+###
+###  Deal with Arms
+###
+####################################################################################################
+
+
+
+def decrement_arm_label():
+    global current_label
+    ###
+    ### a label was deleted in the user interface, need to decrement the counter so we give the correct letter
+    ### when requested
+    current_label-=1
 
 def edit_arm(siteName,armName,x,y):
     print("in edit arm",siteName,armName,x,y)
@@ -229,99 +261,149 @@ def get_overview_map():
     try:
         img = Image.open("overview.png")
         #img = img.resize((800, 800), Image.ANTIALIAS)
-        coordsList = [(site[0],mapmanager.get_coords(overview_map_details[1],(site[1],site[2]),overview_map_details[2],size=1280)) for site in get_all_site_details()]
+        coordsList = [(site["Site Name"],mapmanager.get_coords(overview_map_details[1],site["latlon"],overview_map_details[2],size=1280)) for _,site in sites.items()]
         print("Coord list is",coordsList)
         return [img,coordsList]
     except Exception as e:
+        print("error",e)
         return [None,[]]
 
 def get_nearest_site_on_overview_map(x,y):
     pass
 
 def get_project_details():
-    return [jobName,jobNumber,surveyDate,timePeriods]
+    return [project["jobName"],project["jobNumber"]]
+
+def format_date(d):
+    surveyDate = None
+    if not type(d)== datetime.datetime:
+        try:
+            surveyDate = datetime.datetime.strptime(d,"%d/%m/%Y")
+        except Exception as e:
+            try:
+                surveyDate = datetime.datetime.strptime(d, "%d/%m/%y")
+            except Exception as e:
+                pass
+        return surveyDate
+    else:
+        return d
+
 
 def import_site_details_from_excel():
-    global siteDetails,jobName,jobNumber,surveyDate,timePeriods,projectClasses
-    fileList = list(filedialog.askopenfilenames(initialdir=dir))
-    if fileList == [] or fileList == "":
+    project = None
+    global siteDetails,jobName,jobNumber,surveyDate,timePeriods,projectClasses, project
+    f = filedialog.askopenfilename(initialdir=dir)
+    if f == "":
         return
-    for f in fileList:
-        print(f)
-        siteDetails = pd.read_excel(f,parse_cols=[0,1,2],index_col=None)
+    siteDetails = pd.read_excel(f,parse_cols=[0,1,2,3],index_col=None)
+    siteDetails["Site Name"] = siteDetails["Site Name"].apply(str)
+    siteDetails["Site Name"] = siteDetails["Site Name"].apply(str.title)
+    mask = ~siteDetails["Site Name"].str.contains("Site")
+    siteDetails.loc[mask, "Site Name"] = siteDetails[mask]["Site Name"].apply(lambda x: "Site " + x)
+    mask = ~siteDetails["Site Name"].str.contains("Site ")
+    siteDetails.loc[mask, "Site Name"] = siteDetails[mask]["Site Name"].apply(lambda x: "Site " + x.split("Site")[1])
+    siteDetails.dropna(axis=0, inplace=True)
+    siteDetails[siteDetails["Type"].isnull()] = "J"
     print(siteDetails)
 
-    siteDetails.dropna(axis=0,inplace=True)
-    siteDetails["Site Name"] = siteDetails["Site Name"].apply(str.title)
-    strJoin = lambda x: ",".join(x.astype(str))
     wb = openpyxl.load_workbook(f)
-    jobNumber = wb.worksheets[0]["F4"].value
-    jobName = wb.worksheets[0]["F6"].value
-    surveyDate = wb.worksheets[0]["F8"].value
-    print("type of surveyDatei s",type(surveyDate))
-    print(jobNumber)
+    project = {}
+    project["jobNumber"] = wb.worksheets[0]["F4"].value
+    project["jobName"] = wb.worksheets[0]["F6"].value
+    project["surveys"] = {}
+    surveyTypes = ["J","P","Q"]
+    for index,survey in enumerate(surveyTypes):
+        project["surveys"][survey] = {}
+        project["surveys"][survey]["date"] = format_date(wb.worksheets[0].cell(row=8+index, column=6).value)
+        col = 6
+        project["surveys"][survey]["classes"] = []
+        while not wb.worksheets[0].cell(row=12+(2*index), column=col).value is None:
+            try:
+                pcu = int(wb.worksheets[0].cell(row=13 + (2*index),column=col).value)
+            except Exception as e:
+                pcu = 1
+                project["surveys"][survey]["classes"].append([wb.worksheets[0].cell(row=12+(2*index),column=col).value,pcu])
+            col+=1
+
+        project["surveys"][survey]["times"] = ""
+        col = 6
+        timeList = []
+        while not wb.worksheets[0].cell(row=19+index,column=col).value is None:
+            print(wb.worksheets[0].cell(row=19+index,column=col).value)
+            try:
+                t = wb.worksheets[0].cell(row=19+index,column=col).value
+                timeList.append(t.strftime("%H:%M"))
+                print("timelist is",timeList)
+            except Exception as e:
+                messagebox.showinfo(message="there was a problem with one or more times in the project file\n Please check")
+                project = None
+                return
+            col+=1
+        if len(timeList) != 0:
+            if len(timeList)%2!=0:
+                timeList = timeList[:-1]
+            project["surveys"][survey]["times"] = ",".join([str(timeList[i]) + "-" + str(timeList[i+1]) for i in range(0,len(timeList),2)])
     ###
-    ### load classes
+    ### fill in any blank survey dates and times
     ###
-    col = 6
-    classList = []
-    while not wb.worksheets[0].cell(row=12, column=col).value is None:
-        try:
-            pcu = int(wb.worksheets[0].cell(row=13,column=col).value)
-        except Exception as e:
-            pcu = 1
-        classList.append([wb.worksheets[0].cell(row=12,column=col).value,pcu])
-        col+=1
-    if classList != []:
-        projectClasses = classList
-    else:
-        projectClasses = list(baseClasses)
-    ###
-    ### load time periods
-    ###
-    col = 6
-    timeList = []
-    while not wb.worksheets[0].cell(row=16,column=col).value is None:
-        try:
-            t = wb.worksheets[0].cell(row=16,column=col).value
-            timeList.append(t.strftime("%H:%M"))
-            print(wb.worksheets[0].cell(row=16,column=col).value)
-        except Exception as e:
-            messagebox.showinfo(message="there was a problem with one or more times in the project file\n Please check")
-        col+=1
-    if len(timeList) != 0:
-        if len(timeList)%2!=0:
-            timeList = timeList[:-1]
-        timePeriods = ",".join([str(timeList[i]) + "-" + str(timeList[i+1]) for i in range(0,len(timeList),2)])
-    #print(timeList)
+    #t = [s["times"] for _,s in project["surveys"].items() if not s["times"] is ""]
+    #d = [s["date"] for _,s in project["surveys"].items() if not s["date"] is None]
+    #print(t,d)
+    sites = {}
+    project["sites"] = {}
+    for index, site in siteDetails.iterrows():
+        surveyTypes = site[3].split("/")
+        project["sites"][site[0]] = {}
+        project["sites"][site[0]]["order"] = index
+        project["sites"][site[0]]["site Name"] = site[0]
+        project["sites"][site[0]]["surveys"] ={}
+        for survey in surveyTypes:
+            project["sites"][site[0]]["surveys"][survey] = {}
+            project["sites"][site[0]]["surveys"][survey]["Arms"] = {}
+            project["sites"][site[0]]["surveys"][survey]["zoom"] = individual_site_zoom_value
+            if survey.upper() == "Q":
+                project["sites"][site[0]]["surveys"][survey]["imageType"] = "satellite"
+            else:
+                project["sites"][site[0]]["surveys"][survey]["imageType"] = "roadmap"
+            project["sites"][site[0]]["surveys"][survey]["image"] = None
+            project["sites"][site[0]]["surveys"][survey]["latlon"] = (site[1], site[2])
+
+
+    print("project is",project)
+
+
 
 def load_project():
-    global siteDetails, groups,sites,projectClasses
+    global siteDetails, groups,sites,projectClasses,project
     import_site_details_from_excel()
+    if siteDetails is None:
+        return None
+
     download_overview_map()
-    sites={}
-    for index,site in enumerate(get_all_site_details()):
-        sites[site[0]] = {}
-        sites[site[0]]["Site Name"] = site[0]
-        sites[site[0]]["order"] = index
-        sites[site[0]]["group"] = 1
-        sites[site[0]]["Arms"] ={}
-        sites[site[0]]["zoom"] = individual_site_zoom_value
-        sites[site[0]]["imageType"] = "roadmap"
-        sites[site[0]]["latlon"] = (site[1],site[2])
-        sites[site[0]]["coords"] = mapmanager.get_coords(overview_map_details[1],(site[1],site[2]),overview_map_details[2],size=1280)
+    for _,site in sites.items():
+        site["coords"] = mapmanager.get_coords(overview_map_details[1],site["latlon"],overview_map_details[2],size=1280)
     download_all_individual_site_maps()
     groups["ALL"] = {}
-    groups["ALL"]["siteList"] = [site[0] for site in get_all_site_details()]
+    groups["ALL"]["siteList"] = [site["Site Name"] for _,site in sites.items()]
     groups["ALL"]["coords"] = []
-    #projectClasses = list(baseClasses)
-    return sites[get_all_site_details()[0][0]]
+    with open("test" + ".pkl", "wb") as f:
+        pickle.dump(project, f)
+    with open("test" + ".pkl", "rb") as f:
+        project = pickle.load(f)
+    print("after loading, project is",project)
+    print(get_site_by_order(0))
+    return get_site_by_order(0)
+
+
+
 
 def save_project_to_pickle(file):
-    global sites,groups
+    with open(file + ".pkl","wb") as f:
+        pickle.dump(project,f)
+    global sites,groups,project
     file = file.replace(".pkl","")
     sitesToSave = {}
-    for siteName,site in sites.items():
+    for siteName,site in project["sites"].items():
         print(siteName,site)
         newSite  = {}
         sitesToSave[siteName] = newSite
@@ -343,12 +425,19 @@ def save_project_to_pickle(file):
                 newSite[key] = value
     print("sites to save is",sitesToSave)
     print("sites are",sites)
-    project = {"sites":sitesToSave,"groups":groups,"details":[jobName,jobNumber,surveyDate,timePeriods],"classes":projectClasses}
+    projectToSave = {"sites":sitesToSave,"groups":groups,"details":[project["jobName"],project["jobNumber"]],"classes":projectClasses}
     with open(file + ".pkl","wb") as f:
         pickle.dump(project,f)
 
+
 def load_project_from_pickle(file):
-    global sites,groups,jobName, jobNumber, surveyDate, timePeriods,siteDetails,groupCount,projectClasses
+    global sites,groups,jobName, jobNumber, surveyDate, timePeriods,groupCount,projectClasses,project
+    with open("test" + ".pkl", "rb") as f:
+        project = pickle.load(f)
+    return get_site_by_order(0)
+
+
+
     if ".pkl" in file:
         try:
             with open(file, "rb") as f:
@@ -360,48 +449,34 @@ def load_project_from_pickle(file):
                 details = project["details"]
                 projectClasses = project["classes"]
                 jobName, jobNumber, surveyDate, timePeriods = details
-                download_all_individual_site_maps()
-                siteList = [[site["order"],site["Site Name"],site["latlon"][0],site["latlon"][1]] for key,site in sites.items()]
-                siteDetails=pd.DataFrame(siteList)
-                siteDetails.sort_values(by=[0],inplace=True)
-                siteDetails.reset_index(drop=True,inplace=True)
-                siteDetails.columns=["order","Site Name","Lat","Lon"]
-                del siteDetails["order"]
                 download_overview_map()
-                return sites[get_all_site_details()[0][0]]
+                return get_site_by_order(0)
         except Exception as e:
             print(e)
             return None
 
     return None
 
-def load_previous_site(siteName):
+def load_previous_site(site):
     ###
     ### user has pressed the left arrow to move to the previous site
     ###
 
-    global siteDetails,current_label
-    print("sitename is", siteName)
-    curr = siteDetails[siteDetails["Site Name"] == siteName].index.tolist()[0]
-    print("cur is ", curr)
-    if curr == 0:
-        return sites[siteDetails.iloc[curr].values.tolist()[0]]
-    current_label = 64
-    return sites[siteDetails.iloc[curr-1].values.tolist()[0]]
+    index = site["order"] - 1
+    result = get_site_by_order(index)
+    if result is None:
+        return site
+    return result
 
-def load_next_site(siteName):
+def load_next_site(site):
     ###
     ### user has pressed the right arrow to move to the next site
     ###
-    global siteDetails,current_label
-    curr = siteDetails[siteDetails["Site Name"] == siteName].index.tolist()[0]
-    print("cur is ",curr)
-    try:
-        n = siteDetails.iloc[curr+1]
-        current_label = 64
-        return sites[n.values.tolist()[0]]
-    except IndexError as e:
-        return sites[siteDetails.iloc[curr].values.tolist()[0]]
+    index = site["order"] + 1
+    result = get_site_by_order(index)
+    if result is None:
+        return site
+    return result
 
 def export_to_excel(jobDetails):
     global groups
@@ -585,24 +660,36 @@ def export_to_excel(jobDetails):
         return
 
 def get_all_site_coords():
-    global siteDetails
-    return siteDetails[["Lat", "Lon"]].values.tolist()
+    coords = []
+    for _,site in project["sites"].items():
+        if "J" in site["surveys"]:
+            if not site["surveys"]["J"]["latlon"] in coords:
+                coords.append(site["surveys"]["J"]["latlon"])
+    return coords
 
 def get_all_site_details():
-    global siteDetails
-    return siteDetails[["Site Name","Lat","Lon"]].values.tolist()
+    print("in get site details",sites)#
+    print([site["Site Name"] + site["latlon"] for k, site in sites.items()])
+
+    return [site["Site Name"] + site["latlon"] for k, site in sites.items()]
 
 def download_all_individual_site_maps():
-    for key,site in sites.items():
-        x,y = site["latlon"]
-        map = mapmanager.load_high_def_map_with_labels(x,y,site["zoom"],imageType=site["imageType"])
-        map.save(str(site["Site Name"]) + ".png")
+    for siteName,site in project["sites"].items():
+        print("site is",site)
+        for surveyType,survey in site["surveys"].items():
+            print("survety is",survey)
+            x,y = survey["latlon"]
+            map = mapmanager.load_high_def_map_with_labels(x,y,survey["zoom"],imageType=survey["imageType"])
+            survey["image"] = map.resize((800, 800), Image.ANTIALIAS)
+            map.save(siteName + ".png")
 
 def download_overview_map():
     global overview_map_details
     points = get_all_site_coords()
+    print("in overview map points are",points)
     overview_map_details = mapmanager.load_overview_map_without_street_labels(points)
     overview_map_details[0].save("overview.png")
+    #overview_map_details[0].show()
     print("centre of overview map is",overview_map_details[1],"zoom is",overview_map_details[2])
 
 def download_group_map(groupName):
@@ -668,6 +755,8 @@ def road_orientation(angle):
 
 
 #load_project()
+#save_project_to_pickle("test.pkl")
+#load_project_from_pickle("test.pkl")
 #save_project_to_pickle("test.pkl")
 
 

@@ -19,7 +19,7 @@ class MainWindow(tkinter.Tk):
         self.tracsisGrey = "#%02x%02x%02x" % (99, 102, 106)
         super(MainWindow, self).__init__()
         self.state("zoomed")
-        self.mapPanel = tkinter.Canvas(self,relief=tkinter.RAISED,borderwidth=1)
+        self.mapPanel = tkinter.Canvas(self,relief=tkinter.RAISED,borderwidth=1,width=800,height=800)
         self.mapPanelImage = None
         self.overviewImage = None
         self.mapPanelSize = 800 ### TODO change this to deal with different screen res
@@ -32,7 +32,7 @@ class MainWindow(tkinter.Tk):
         self.movingMap = False
         self.drawingArm = False
         self.allowArmDelete = True
-
+        self.winSpawned = False
         ### set up the menu bar
 
         self.menubar = tkinter.Menu(self)
@@ -44,93 +44,31 @@ class MainWindow(tkinter.Tk):
         self.menubar.add_cascade(label="File", menu=menu)
         self.config(menu=self.menubar)
 
-
-        self.mapPanelHasFocus = False
-        f = tkinter.font.Font(family='Helvetica', size=16, weight=tkinter.font.BOLD)
-        f2 = tkinter.font.Font(family='Helvetica', size=8)
-        tkinter.Label(self, text="Job Details", font=f, fg=self.tracsisBlue,relief=tkinter.GROOVE,bg="light blue").grid(row=0, column=0,sticky="nsew")
-        self.detailsPanel = tkinter.Frame(self,relief=tkinter.GROOVE,borderwidth=2)
-        tkinter.Label(self.detailsPanel,text = "Job Name",width = 12,fg = self.tracsisBlue,relief = tkinter.GROOVE,borderwidth=2).grid(row =0,column=0,sticky="nsew")
-        tkinter.Label(self.detailsPanel,text = "Job No",width = 12,fg = self.tracsisBlue,relief = tkinter.GROOVE,borderwidth=2).grid(row =1,column=0,sticky="nsew")
-        tkinter.Label(self.detailsPanel,text = "Survey Date",width = 12,fg = self.tracsisBlue,relief = tkinter.GROOVE,borderwidth=2).grid(row =2,column=0,sticky="nsew")
-        tkinter.Label(self.detailsPanel,text = "Times",width = 12,fg = self.tracsisBlue,relief = tkinter.GROOVE,borderwidth=2).grid(row =3,column=0,sticky="nsew")
-        tkinter.Label(self.detailsPanel,text = "Period",width = 12,fg = self.tracsisBlue,relief = tkinter.GROOVE,borderwidth=2).grid(row =4,column=0,sticky="nsew")
-
         self.jobNameVar = tkinter.StringVar()
         self.jobNumVar = tkinter.StringVar()
-        self.surveyDateVar = tkinter.StringVar()
-        self.timesVar = tkinter.StringVar()
+        self.mapPanelHasFocus = False
 
-        e = tkinter.Entry(self.detailsPanel,textvariable = self.jobNameVar,font = f2)
-        e.grid(row =0,column=1,sticky="nsew")
-        e.bind("<FocusIn>",self.disable_arm_delete)
-        e.bind("<FocusOut>",self.enable_arm_delete)
-        e = tkinter.Entry(self.detailsPanel, textvariable=self.jobNumVar,font = f2)
-        e.grid(row =1,column=1,sticky="nsew")
-        e.bind("<FocusIn>", self.disable_arm_delete)
-        e.bind("<FocusOut>", self.enable_arm_delete)
-        e = tkinter.Entry(self.detailsPanel, textvariable=self.surveyDateVar,font = f2)
-        e.grid(row =2,column=1,sticky="nsew")
-        e.bind("<FocusIn>", self.disable_arm_delete)
-        e.bind("<FocusOut>", self.enable_arm_delete)
-        self.timesTextBox = tkinter.Text(self.detailsPanel,height = 3,width = 20,wrap=tkinter.WORD,font = f2)
-        self.timesTextBox.grid(row =3,column=1,sticky="nsew")
-        self.timesTextBox.bind("<FocusIn>", self.disable_arm_delete)
-        self.timesTextBox.bind("<FocusOut>", self.enable_arm_delete)
-        self.periodBox = ttk.Combobox(self.detailsPanel,width = 16)
-        self.periodBox["values"] = ["5","15","30","60"]
-        self.periodBox.grid(row = 4,column=1,sticky="nsew")
+        f = tkinter.font.Font(family='Helvetica', size=16, weight=tkinter.font.BOLD)
+        f2 = tkinter.font.Font(family='Helvetica', size=8)
+
+        tkinter.Label(self, text="Job Details", font=f, fg=self.tracsisBlue,relief=tkinter.GROOVE,bg="light blue").grid(row=0, column=0,sticky="nsew")
+        self.detailsPanel = tkinter.Frame(self,relief=tkinter.GROOVE,borderwidth=2)
 
 
-        tkinter.Label(self.detailsPanel,text = "Classes",font=f,fg = self.tracsisBlue,relief=tkinter.GROOVE,bg="light blue").grid(row = 5,column = 0,columnspan = 2,sticky="nsew")
-        cols = ["Class", "PCU"]
-        self.classesTree = ttk.Treeview(self.detailsPanel,columns = cols,height = 8,show = "headings",selectmode = "browse")
-        self.classesTree.bind("<Double-Button-1>", self.edit_class)
-        self.classesTree.tag_configure("odd", background="white", foreground=self.tracsisBlue)
-        self.classesTree.tag_configure("even", background="azure2", foreground=self.tracsisBlue)
-        for i,c in enumerate(cols):
-            self.classesTree.heading(i,text = c)
-        self.classesTree.column(0, width=60, anchor=tkinter.CENTER)
-        #self.classesTree.column(1, width=150, anchor=tkinter.CENTER)
-        self.classesTree.column(1, width=40, anchor=tkinter.CENTER)
-        self.classesTree.grid(row = 6,column = 0,columnspan =1,rowspan = 4)
-        self.display_classes()
-
-        tkinter.Button(self.detailsPanel,text = "Add",command=self.add_class,width = 6).grid(row = 6,column = 1,sticky="nsw")
-        tkinter.Button(self.detailsPanel, text="Delete", command=self.delete_class,width = 6).grid(row=7, column=1,sticky="nsw")
-        tkinter.Button(self.detailsPanel,text = "UP",command=self.move_class_up,width = 6).grid(row = 8,column = 1,sticky="nsw")
-        tkinter.Button(self.detailsPanel, text="DOWN", command=self.move_class_down,width = 6).grid(row=9, column=1,sticky="nsw")
-
-        ####
-        ### Groups
-        ###
-
-
-        tkinter.Label(self.detailsPanel, text="Groups", font=f, fg=self.tracsisBlue,relief=tkinter.GROOVE,bg="light blue").grid(row = 10,column = 0,columnspan = 4,sticky="nsew")
-        cols = ["Group"]
-        self.groupsTree = ttk.Treeview(self.detailsPanel, columns=cols, height=7, show="headings", selectmode="browse")
-        self.groupsTree.bind("<<TreeviewSelect>>", self.display_group)
-        self.groupsTree.bind("<Double-Button-1>",self.delete_group)
-        self.groupsTree.bind("<Button-3>", self.show_group_map)
-        self.groupsTree.tag_configure("odd", background="white", foreground=self.tracsisBlue)
-        self.groupsTree.tag_configure("even", background="azure2", foreground=self.tracsisBlue)
-        for i, c in enumerate(cols):
-            self.groupsTree.heading(i, text=c)#
-        self.groupsTree.column(0, width=100, anchor=tkinter.CENTER)
-        self.groupsTree.grid(row = 11,column = 0)
-        #self.groupsTree.insert("","end",values= ["Group 1"],tags =("tree", "odd") )
-
-        self.groupList = tkinter.Listbox(self.detailsPanel)
-        self.groupList.bind("<Double-Button-1>", self.delete_site_from_group)
-        self.groupList.bind("<Button-3>", self.show_group_map)
-        self.groupList.grid(row = 11,column = 1,sticky = "ns")
-        tkinter.Button(self.detailsPanel,text = "Add",command=self.add_group,width = 6).grid(row = 12,column = 0,columnspan = 1)
-        #tkinter.Button(self.detailsPanel, text="Delete", command=self.delete_class,width = 6).grid(row=13, column=0, columnspan=2)
+        self.detailsPanel.grid(row=1, column=0, sticky="n")
 
 
 
-        self.winSpawned = False
-        self.detailsPanel.grid(row=1,column=0,sticky="n")
+        self.surveyTabs = ttk.Notebook(self.detailsPanel)
+        self.surveyTabs.grid(row=2, column=0)
+        for survey in ["JTC","Queue","Ped"]:
+            frame = tkinter.Frame(self.detailsPanel)
+            self.surveyTabs.add(frame, text=survey)
+
+        self.build_JTC_frame()
+        self.build_queue_frame()
+        self.build_ped_frame()
+        self.update()
 
 
         self.mapLabel = tkinter.Label(self, text="", font=f, fg=self.tracsisBlue,bg="light blue",relief=tkinter.GROOVE,borderwidth=2)
@@ -155,37 +93,268 @@ class MainWindow(tkinter.Tk):
         self.overviewPanel.grid(row = 1,column = 2)
         self.overviewPanel.bind("<MouseWheel>",self.on_mousewheel)
 
-
         self.addingArmLabel = False
         self.armLineStartingCoords = None
         self.armList = []
-        self.dragInfo ={}
+        self.dragInfo = {}
         self.dragInfo["Widget"] = None
-        self.mapPanel.grid(row=1,column=1,rowspan=3)
-        #self.mapPanel.bind("<Double-Button-1>",self.add_arm_icon)
-        self.mapPanel.bind("<Button-1>",self.on_press_to_move)
+        self.mapPanel.grid(row=1, column=1, rowspan=3)
+        # self.mapPanel.bind("<Double-Button-1>",self.add_arm_icon)
+        self.mapPanel.bind("<Button-1>", self.on_press_to_move)
         self.mapPanel.bind("<Button-3>", self.on_right_click_to_move_map)
-        self.bind("<Control_L>",self.control_pressed)
-        self.bind("<KeyRelease-Control_L>",self.control_released)
+        self.bind("<Control_L>", self.control_pressed)
+        self.bind("<KeyRelease-Control_L>", self.control_released)
         self.controlDown = False
-        self.mapPanel.bind("<ButtonRelease-1>",self.onReleaseToMove)
+        self.mapPanel.bind("<ButtonRelease-1>", self.onReleaseToMove)
         self.mapPanel.bind("<ButtonRelease-3>", self.onReleaseRightClickToMove)
         print("binding left and right")
-        self.bind("<Left>",self.decrement_map)
+        self.bind("<Left>", self.decrement_map)
         self.bind("<Right>", self.increment_map)
-        self.mapPanel.bind("<Enter>",self.mouse_over_map_panel)
-        self.mapPanel.bind("<Leave>",self.mouse_leave_map_panel)
+        self.mapPanel.bind("<Enter>", self.mouse_over_map_panel)
+        self.mapPanel.bind("<Leave>", self.mouse_leave_map_panel)
         self.activity = None
-        #self.load_map_panel_map(self.currentSite["Site Name"])
-        #self.load_overview_map()
-        #self.currentTag = ""
-        #self.dragInfo = {}
+        # self.load_map_panel_map(self.currentSite["Site Name"])
+        # self.load_overview_map()
+        # self.currentTag = ""
+        # self.dragInfo = {}
+
+        return
+
+
+
+        ####
+        ### Groups
+        ###
+
+
+        tkinter.Label(frame, text="Groups", font=f, fg=self.tracsisBlue,relief=tkinter.GROOVE,bg="light blue").grid(row = 10,column = 0,columnspan = 4,sticky="nsew")
+        cols = ["Group"]
+        self.groupsTree = ttk.Treeview(frame, columns=cols, height=7, show="headings", selectmode="browse")
+        self.groupsTree.bind("<<TreeviewSelect>>", self.display_group)
+        self.groupsTree.bind("<Double-Button-1>",self.delete_group)
+        self.groupsTree.bind("<Button-3>", self.show_group_map)
+        self.groupsTree.tag_configure("odd", background="white", foreground=self.tracsisBlue)
+        self.groupsTree.tag_configure("even", background="azure2", foreground=self.tracsisBlue)
+        for i, c in enumerate(cols):
+            self.groupsTree.heading(i, text=c)#
+        self.groupsTree.column(0, width=100, anchor=tkinter.CENTER)
+        self.groupsTree.grid(row = 11,column = 0)
+        #self.groupsTree.insert("","end",values= ["Group 1"],tags =("tree", "odd") )
+
+        self.groupList = tkinter.Listbox(frame)
+        self.groupList.bind("<Double-Button-1>", self.delete_site_from_group)
+        self.groupList.bind("<Button-3>", self.show_group_map)
+        self.groupList.grid(row = 11,column = 1,sticky = "ns")
+        tkinter.Button(frame,text = "Add",command=self.add_group,width = 6).grid(row = 12,column = 0,columnspan = 1)
+        #tkinter.Button(self.detailsPanel, text="Delete", command=self.delete_class,width = 6).grid(row=13, column=0, columnspan=2)
+
+
+
+        self.winSpawned = False
+
+
+    ##########################################################################################################################
+    ###
+    ### Functions to deal with the setting up the various windows for survey details etc
+    ###
+    ##########################################################################################################################
+
+    def display_project_details(self):
+        for child in self.winfo_children()[1:]:
+            child.destroy()
+
+
+
+    def build_JTC_frame(self):
+        frame = self.surveyTabs.tabs()[0]
+        frame = self.nametowidget(frame)
+        print("frame is",frame,type(frame))
+        #for child in frame.winfo_children():
+            #child.destroy()
+        f = tkinter.font.Font(family='Helvetica', size=16, weight=tkinter.font.BOLD)
+        f2 = tkinter.font.Font(family='Helvetica', size=8)
+
+        ##########################################################################################
+        #
+        # JTC TAB
+        #
+        ##########################################################################################
+
+        tkinter.Label(frame, text=" Job Name ", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE,
+                      borderwidth=2).grid(row=0, column=0, sticky="nsew")
+        tkinter.Label(frame, text=" Job No ", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE, borderwidth=2).grid(
+            row=1, column=0, sticky="nsew")
+        e = tkinter.Entry(frame, textvariable=self.jobNameVar, font=f2)
+        e.grid(row=0, column=1, sticky="nsew")
+        e.bind("<FocusIn>", self.disable_arm_delete)
+        e.bind("<FocusOut>", self.enable_arm_delete)
+        e = tkinter.Entry(frame, textvariable=self.jobNumVar, font=f2)
+        e.grid(row=1, column=1, sticky="nsew")
+        e.bind("<FocusIn>", self.disable_arm_delete)
+        e.bind("<FocusOut>", self.enable_arm_delete)
+        e = tkinter.Entry(frame, textvariable=self.jobNameVar, font=f2)
+        self.surveyDateVar = tkinter.StringVar()
+        self.timesVar = tkinter.StringVar()
+
+        tkinter.Label(frame, text="Survey Date", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE,
+                      borderwidth=2).grid(row=2, column=0, sticky="nsew")
+        tkinter.Label(frame, text="Times", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE, borderwidth=2).grid(
+            row=3, column=0, sticky="nsew")
+        tkinter.Label(frame, text="Period", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE, borderwidth=2).grid(
+            row=4, column=0, sticky="nsew")
+        e = tkinter.Entry(frame, textvariable=self.surveyDateVar, font=f2)
+        e.grid(row=2, column=1, sticky="nsew")
+        e.bind("<FocusIn>", self.disable_arm_delete)
+        e.bind("<FocusOut>", self.enable_arm_delete)
+        self.timesTextBox = tkinter.Text(frame, height=3, width=20, wrap=tkinter.WORD, font=f2)
+        self.timesTextBox.grid(row=3, column=1, sticky="nsew")
+        self.timesTextBox.bind("<FocusIn>", self.disable_arm_delete)
+        self.timesTextBox.bind("<FocusOut>", self.enable_arm_delete)
+        self.periodBox = ttk.Combobox(frame, width=16)
+        self.periodBox["values"] = ["5", "15", "30", "60"]
+        self.periodBox.grid(row=4, column=1, sticky="nsew")
+
+        tkinter.Label(frame, text="Classes", font=f, fg=self.tracsisBlue, relief=tkinter.GROOVE, bg="light blue").grid(
+            row=5, column=0, columnspan=2, sticky="nsew")
+        cols = ["Class", "PCU"]
+
+        for i,col in enumerate(cols):
+            tkinter.Label(frame,text = col).grid(row=6,column=i,sticky="nsew")
+        classesframe = tkinter.Frame(frame, bg="red")
+        classesframe.grid(row=7, column=0, columnspan=2, sticky="nsew")
+
+
+
+        tkinter.Button(frame, text="Add", command=self.add_class, width=6).grid(row=8, column=0, sticky="nsew",columnspan=2)
+
+
+    def build_queue_frame(self):
+        frame = self.surveyTabs.tabs()[1]
+        frame = self.nametowidget(frame)
+        print("frame is",frame,type(frame))
+        #for child in frame.winfo_children():
+            #child.destroy()
+        f = tkinter.font.Font(family='Helvetica', size=16, weight=tkinter.font.BOLD)
+        f2 = tkinter.font.Font(family='Helvetica', size=8)
+
+        ##########################################################################################
+        #
+        # queue TAB
+        #
+        ##########################################################################################
+
+        tkinter.Label(frame, text=" Job Name ", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE,
+                      borderwidth=2).grid(row=0, column=0, sticky="nsew")
+        tkinter.Label(frame, text=" Job No ", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE, borderwidth=2).grid(
+            row=1, column=0, sticky="nsew")
+        e = tkinter.Entry(frame, textvariable=self.jobNameVar, font=f2)
+        e.grid(row=0, column=1, sticky="nsew")
+        e.bind("<FocusIn>", self.disable_arm_delete)
+        e.bind("<FocusOut>", self.enable_arm_delete)
+        e = tkinter.Entry(frame, textvariable=self.jobNumVar, font=f2)
+        e.grid(row=1, column=1, sticky="nsew")
+        e.bind("<FocusIn>", self.disable_arm_delete)
+        e.bind("<FocusOut>", self.enable_arm_delete)
+        e = tkinter.Entry(frame, textvariable=self.jobNameVar, font=f2)
+        self.surveyDateVar = tkinter.StringVar()
+        self.timesVar = tkinter.StringVar()
+
+        tkinter.Label(frame, text="Survey Date", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE,
+                      borderwidth=2).grid(row=2, column=0, sticky="nsew")
+        tkinter.Label(frame, text="Times", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE, borderwidth=2).grid(
+            row=3, column=0, sticky="nsew")
+        tkinter.Label(frame, text="Period", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE, borderwidth=2).grid(
+            row=4, column=0, sticky="nsew")
+        e = tkinter.Entry(frame, textvariable=self.surveyDateVar, font=f2)
+        e.grid(row=2, column=1, sticky="nsew")
+        e.bind("<FocusIn>", self.disable_arm_delete)
+        e.bind("<FocusOut>", self.enable_arm_delete)
+        self.timesTextBox = tkinter.Text(frame, height=3, width=20, wrap=tkinter.WORD, font=f2)
+        self.timesTextBox.grid(row=3, column=1, sticky="nsew")
+        self.timesTextBox.bind("<FocusIn>", self.disable_arm_delete)
+        self.timesTextBox.bind("<FocusOut>", self.enable_arm_delete)
+        self.periodBox = ttk.Combobox(frame, width=16)
+        self.periodBox["values"] = ["5", "15", "30", "60"]
+        self.periodBox.grid(row=4, column=1, sticky="nsew")
+
+        tkinter.Label(frame, text="Classes", font=f, fg=self.tracsisBlue, relief=tkinter.GROOVE, bg="light blue").grid(
+            row=5, column=0, columnspan=2, sticky="nsew")
+        cols = ["Class", "PCU"]
+
+        for i, col in enumerate(cols):
+            tkinter.Label(frame, text=col).grid(row=6, column=i, sticky="nsew")
+        classesframe = tkinter.Frame(frame, bg="red")
+        classesframe.grid(row=7, column=0, columnspan=2, sticky="nsew")
+
+        tkinter.Button(frame, text="Add", command=self.add_class, width=6).grid(row=8, column=0, sticky="nsew",columnspan=2)
+
+    def build_ped_frame(self):
+        frame = self.surveyTabs.tabs()[2]
+        frame = self.nametowidget(frame)
+        print("frame is",frame,type(frame))
+        #for child in frame.winfo_children():
+            #child.destroy()
+        f = tkinter.font.Font(family='Helvetica', size=16, weight=tkinter.font.BOLD)
+        f2 = tkinter.font.Font(family='Helvetica', size=8)
+
+        ##########################################################################################
+        #
+        # JTC TAB
+        #
+        ##########################################################################################
+
+        tkinter.Label(frame, text=" Job Name ", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE,
+                      borderwidth=2).grid(row=0, column=0, sticky="nsew")
+        tkinter.Label(frame, text=" Job No ", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE, borderwidth=2).grid(
+            row=1, column=0, sticky="nsew")
+        e = tkinter.Entry(frame, textvariable=self.jobNameVar, font=f2)
+        e.grid(row=0, column=1, sticky="nsew")
+        e.bind("<FocusIn>", self.disable_arm_delete)
+        e.bind("<FocusOut>", self.enable_arm_delete)
+        e = tkinter.Entry(frame, textvariable=self.jobNumVar, font=f2)
+        e.grid(row=1, column=1, sticky="nsew")
+        e.bind("<FocusIn>", self.disable_arm_delete)
+        e.bind("<FocusOut>", self.enable_arm_delete)
+        e = tkinter.Entry(frame, textvariable=self.jobNameVar, font=f2)
+        self.surveyDateVar = tkinter.StringVar()
+        self.timesVar = tkinter.StringVar()
+
+        tkinter.Label(frame, text="Survey Date", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE,
+                      borderwidth=2).grid(row=2, column=0, sticky="nsew")
+        tkinter.Label(frame, text="Times", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE, borderwidth=2).grid(
+            row=3, column=0, sticky="nsew")
+        tkinter.Label(frame, text="Period", width=12, fg=self.tracsisBlue, relief=tkinter.GROOVE, borderwidth=2).grid(
+            row=4, column=0, sticky="nsew")
+        e = tkinter.Entry(frame, textvariable=self.surveyDateVar, font=f2)
+        e.grid(row=2, column=1, sticky="nsew")
+        e.bind("<FocusIn>", self.disable_arm_delete)
+        e.bind("<FocusOut>", self.enable_arm_delete)
+        self.timesTextBox = tkinter.Text(frame, height=3, width=20, wrap=tkinter.WORD, font=f2)
+        self.timesTextBox.grid(row=3, column=1, sticky="nsew")
+        self.timesTextBox.bind("<FocusIn>", self.disable_arm_delete)
+        self.timesTextBox.bind("<FocusOut>", self.enable_arm_delete)
+        self.periodBox = ttk.Combobox(frame, width=16)
+        self.periodBox["values"] = ["5", "15", "30", "60"]
+        self.periodBox.grid(row=4, column=1, sticky="nsew")
+
+        tkinter.Label(frame, text="Classes", font=f, fg=self.tracsisBlue, relief=tkinter.GROOVE, bg="light blue").grid(
+            row=5, column=0, columnspan=2, sticky="nsew")
+        cols = ["Class", "PCU"]
+
+        for i, col in enumerate(cols):
+            tkinter.Label(frame, text=col).grid(row=6, column=i, sticky="nsew")
+        classesframe = tkinter.Frame(frame, bg="red")
+        classesframe.grid(row=7, column=0, columnspan=2, sticky="nsew")
+
+        tkinter.Button(frame, text="Add", command=self.add_class, width=6).grid(row=8, column=0, sticky="nsew",columnspan=2)
+
 
 
     ##########################################################################################################################
     ###
     ### Functions to deal with the overview panel, defining and selecting groups,zooming and panning map
     ###
+    ###########################################################################################################################
 
     def overview_map_clicked(self,event):
         print(event.x,event.y)
@@ -279,6 +448,7 @@ class MainWindow(tkinter.Tk):
         circleRadius = 10
         self.overviewDetails = projectmanager.get_overview_map()
         self.baseMapImage = self.overviewDetails[0]
+        print("base map is",self.baseMapImage)
         #self.overviewPanel.delete(tkinter.ALL)
         #self.overviewPanel.create_image(5, 5, image=self.overviewDetails[0], anchor=tkinter.NW, tags=("map",))
         self.overviewPanel.configure(width=800, height=800)
@@ -388,7 +558,7 @@ class MainWindow(tkinter.Tk):
         result = projectmanager.download_group_map(groupName)
         if result != False:
             img2 = Image.open(groupName + ".png")
-            img2.show()
+            #img2.show()
 
     def update_groups_tree(self):
         self.groupsTree.delete(*self.groupsTree.get_children())
@@ -433,60 +603,12 @@ class MainWindow(tkinter.Tk):
     ###
     ###  Functions to deal with adding, deleting and editing vehicle classes
     ###
-
-    def spawn_edit_window(self,className = "",pcu = ""):
-        self.disable_arm_delete(event=None)
-        if not self.winSpawned:
-            self.winSpawned = True
-            self.win = tkinter.Toplevel(self)
-            self.win.protocol("WM_DELETE_WINDOW", self.edit_window_closed)
-            self.classesTree.configure(selectmode = "none")
-            tkinter.Label(self.win, text="Class", anchor=tkinter.E, width=12).grid(row=0, column=0)
-            tkinter.Label(self.win, text="PCU", anchor=tkinter.E, width=12).grid(row=1, column=0)
-            self.classVar = tkinter.StringVar()
-            self.descVar = tkinter.StringVar()
-            self.PCUVar = tkinter.StringVar()
-            self.classVar.set(className)
-            self.PCUVar.set(pcu)
-            tkinter.Entry(self.win, textvariable=self.classVar).grid(row=0, column=1,columnspan =2)
-            tkinter.Entry(self.win, textvariable=self.PCUVar).grid(row=1, column=1,columnspan =2)
-            tkinter.Button(self.win, text="Cancel",command=self.edit_window_closed).grid(row=3, column=1)
-            tkinter.Button(self.win, text="Save",command=self.edit_window_saved,width=6).grid(row=3, column=2)
-
-    def edit_window_closed(self):
-        self.enable_arm_delete(event=None)
-        self.winSpawned = False
-        self.classesTree.configure(selectmode="browse")
-        self.win.destroy()
-
-    def edit_window_saved(self):
-        self.enable_arm_delete(event=None)
-        values = [self.classVar.get(), self.PCUVar.get()]
-        if self.addClass:
-            projectmanager.add_class(values)
-        else:
-            curItem = self.classesTree.selection()[0]
-            if "I0" in curItem:
-                index = 0
-            else:
-                index = int(curItem)
-            projectmanager.edit_class(values,index)
-        self.addClass=False
-        self.edit_window_closed()
-        self.display_classes()
-
-    def edit_class(self,event):
-        self.addClass = False
-        widget = event.widget
-        if len(widget.selection()) == 0:
-            return
-        curItem = widget.selection()[0]
-        values = widget.item(curItem)["values"]
-        self.spawn_edit_window(className=values[0],pcu=values[1])
+    #######################################################################################################################
 
     def add_class(self):
-        self.addClass = True
-        self.spawn_edit_window()
+        tabIndex = self.surveyTabs.index(self.surveyTabs.select())
+        row = projectmanager.add_class(["Class",1],tabIndex) - 1
+        self.display_classes(widgetFocus=(tabIndex,(row* 2 )))
 
     def delete_class(self):
         try:
@@ -502,56 +624,85 @@ class MainWindow(tkinter.Tk):
         except IndexError as e:
             print("eoriehjo")
 
-    def display_classes(self):
-        self.classesTree.delete(*self.classesTree.get_children())
-        for i,row in enumerate(projectmanager.get_classes()):
-            if i % 2 == 0:
-                self.classesTree.insert("", "end",iid=str(i), values=row, tags=("tree", "even"))
+    def display_classes(self,widgetFocus=None):
+        vcmd = (self.register(self.verify_class), "%d", "%s", "%S")
+        for i in range(3):
+            frame = self.surveyTabs.tabs()[i]
+            frame = self.nametowidget(frame).winfo_children()[14]
+            print("frame is",type(frame))
+            for child in frame.winfo_children():
+                child.destroy()
+            for row,value in enumerate(projectmanager.get_classes(i)):
+                e = tkinter.Entry(frame)
+                e.bind("<Return>", self.verify_class)
+                e.bind("<Tab>", self.verify_class)
+                e.bind("<Up>", self.move_class_up)
+                e.bind("<Down>", self.move_class_down)
+                e.grid(row=row,column=0)
+                e.insert(0,value[0])
+                e = tkinter.Entry(frame)
+                e.bind("<Return>",self.verify_class)
+                e.bind("<Tab>",self.verify_class)
+                e.bind("<Up>", self.move_class_up)
+                e.bind("<Down>", self.move_class_down)
+                e.grid(row=row, column=1)
+                e.insert(0, value[1])
+        if not widgetFocus is None:
+            print("widgetfocus is",widgetFocus)
+            frameIndex = widgetFocus[0]
+            widgetNo = widgetFocus[1]
+            frame = self.nametowidget(self.surveyTabs.tabs()[frameIndex]).winfo_children()[14]
+            print("frame is",type(frame))
+            frame.winfo_children()[widgetNo].focus_set()
+
+    def move_class_up(self,event):
+        tabIndex = self.surveyTabs.index(self.surveyTabs.select())
+        row = event.widget.grid_info()["row"]
+        index = projectmanager.move_class_up(row,tabIndex)
+        self.display_classes(widgetFocus=(tabIndex,((index* 2 ) + event.widget.grid_info()["column"])))
+        #event.widget.focus_set()
+
+    def move_class_down(self,event):
+        tabIndex = self.surveyTabs.index(self.surveyTabs.select())
+        row = event.widget.grid_info()["row"]
+        index = projectmanager.move_class_down(row, tabIndex)
+        self.display_classes(widgetFocus=(tabIndex, ((index * 2) + event.widget.grid_info()["column"])))
+        #event.widget.focus_set()
+
+    def verify_class(self,event):
+        parentFrame = self.nametowidget(event.widget.winfo_parent())
+        tabIndex = self.surveyTabs.index(self.surveyTabs.select())
+        row = event.widget.grid_info()["row"]
+        col = event.widget.grid_info()["column"]
+        print("edited row",row)
+        text = event.widget.get()
+        print("text is",text)
+        print("tabindex is",tabIndex)
+        vals = [parentFrame.winfo_children()[2*row].get(),parentFrame.winfo_children()[(2*row) + 1].get()]
+        print("vals are",vals)
+        widgetFocus = None
+        if col==0 and text == "":
+            num = projectmanager.delete_class(row,tabIndex)
+            if num == 0:
+                widgetFocus = None
             else:
-                self.classesTree.insert("", "end",iid=str(i), values=row, tags=("tree", "odd"))
-
-    def move_class_up(self):
-        print("selection is",self.classesTree.selection())
-        if self.classesTree.selection() == "":
-            return
-        try:
-            curItem = self.classesTree.selection()[0]
-            print("curitem is",curItem)
-            self.classesTree.delete(curItem)
-            if "I0" in curItem:
-                index = 0
-            else:
-                index = int(curItem)
-        except Exception as e:
-            pass
-        index = projectmanager.move_class_up(index)
-
-        self.display_classes()
-        self.classesTree.selection_set(str(index))
-
-    def move_class_down(self):
-        if self.classesTree.selection() == "":
-            return
-        try:
-            curItem = self.classesTree.selection()[0]
-            print("curitem is",curItem)
-            self.classesTree.delete(curItem)
-            if "I0" in curItem:
-                index = 0
-            else:
-                index = int(curItem)
-        except Exception as e:
-            pass
-        index =projectmanager.move_class_down(index)
-        self.display_classes()
-        self.classesTree.selection_set(str(index))
-
+                row-=1
+                if row <0:
+                    row = 0
+                widgetFocus = (tabIndex,row*2)
+        else:
+            num = projectmanager.edit_class(vals,row,tabIndex)
+            index = (row * 2) + 1 + col
+            if index > (num*2) -1:
+                index = (num*2)-1
+            widgetFocus =(tabIndex,index)
+        self.display_classes(widgetFocus=widgetFocus)
 
     ########################################################################################################################
     ###
     ### methods to deal with zooming or dragging the overview map
     ###
-
+    #######################################################################################################################
 
 
 
@@ -559,9 +710,10 @@ class MainWindow(tkinter.Tk):
     ###
     ### methods to deal with the site maps,importing, exporting projects etc
     ###
+    ########################################################################################################################
 
     def change_site_image_type(self):
-        projectmanager.change_site_image_type(self.imageTypeVar.get(),self.currentSite["Site Name"])
+        projectmanager.change_site_image_type(self.imageTypeVar.get(),self.currentSite)
         self.redraw_map_with_labels()
 
     def load_project(self):
@@ -570,7 +722,9 @@ class MainWindow(tkinter.Tk):
         self.overviewPanel.delete(tkinter.ALL)
         self.dragInfo["widget"] = None
         self.currentSite = projectmanager.load_project()
-        self.display_project()
+        self.display_classes()
+        if not self.currentSite is None:
+            self.display_project()
 
     def save_project_to_pickle(self):
         file = filedialog.asksaveasfilename()
@@ -596,6 +750,7 @@ class MainWindow(tkinter.Tk):
     def display_project(self):
         print("current site is", self.currentSite)
         projectDetails = projectmanager.get_project_details()
+        print("project details are",projectDetails)
         self.jobNameVar.set(projectDetails[0])
         self.jobNumVar.set(projectDetails[1])
         self.surveyDateVar.set(datetime.datetime.strftime(projectDetails[2], "%d/%m/%Y"))
@@ -611,7 +766,7 @@ class MainWindow(tkinter.Tk):
         self.display_classes()
 
     def change_site_zoom(self,value):
-        projectmanager.change_site_zoom(self.currentSite["Site Name"],value)
+        projectmanager.change_site_zoom(self.currentSite,value)
         self.redraw_map_with_labels()
 
     def export_to_excel(self):
@@ -657,13 +812,13 @@ class MainWindow(tkinter.Tk):
 
     def increment_map(self,event):
         print("pressed right arrow")
-        self.currentSite = projectmanager.load_next_site(self.currentSite["Site Name"])
+        self.currentSite = projectmanager.load_next_site(self.currentSite)
         print("currenty site is",self.currentSite)
         self.redraw_map_with_labels()
 
     def decrement_map(self,event):
         print("pressed left arrow")
-        self.currentSite = projectmanager.load_previous_site(self.currentSite["Site Name"])
+        self.currentSite = projectmanager.load_previous_site(self.currentSite)
         self.redraw_map_with_labels()
 
     def redraw_map_with_labels(self):
@@ -699,7 +854,7 @@ class MainWindow(tkinter.Tk):
         self.imageTypeVar.set(val)
 
     def load_map_panel_map(self,siteName):
-        self.mapPanelImage = projectmanager.get_site_map(siteName)
+        self.mapPanelImage = ImageTk.PhotoImage(self.currentSite["image"])
         allwidgetsWithTag = self.mapPanel.find_withtag("map")
         print("allwidgets with tag are", allwidgetsWithTag)
         for child in allwidgetsWithTag:

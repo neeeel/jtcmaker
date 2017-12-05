@@ -61,64 +61,28 @@ def get_centre_of_points(points,zoom):
     #print("centre is ",centre)
     return centre
 
-def calculateZoomValueAlternate(points):
-    global zoomValues
-    print("points are",points)
-    maxX = max(points, key=lambda item: item[0])[0]
-    maxY = min(points, key=lambda item: item[1])[1] ### because lons are negative in our location
-    minX = min(points, key=lambda item: item[0])[0]
-    minY = max(points, key=lambda item: item[1])[1]
-    print("max",maxX, maxY, "min",minX, minY)
-    avX = (maxX + minX) / 2
-    avY = (maxY + minY) / 2
-    print("other centre is", avX, avY)
-    centre = (avX,avY)
-    print("average centre is",centre)
-    for zoom in range(20,5,-1):
-        print("zoom is",zoom)
-        #centre = get_centre_of_points(points,zoom)
-        #print("centre is",centre)
 
-        centreAsPixels = latlontopixels(centre,zoom)
-        #print(centreAsPixels)
-        topLeft =(centreAsPixels[0]-280,centreAsPixels[1]+280) ## the coords in pixels of the top left of the map image
-        #print(topLeft)
-        bottomRight = (centreAsPixels[0]+280,centreAsPixels[1]-280) ## the coords in pixels of the bottom right of the map image
-        #print(bottomRight)
-        distBetweenMinAndCentre = pixelDistance(minX, maxY, centre[0], centre[1], zoom)
-        distBetweenMaxAndCentre = pixelDistance(maxX, minY, centre[0], centre[1], zoom)
-        print("dists are",distBetweenMaxAndCentre,distBetweenMinAndCentre)
-        if distBetweenMinAndCentre[2] <280 and distBetweenMaxAndCentre[2] < 280 :
-            break
-    return zoom
-
-def calculateZoomValue(points):
-    ###
-    ### dont use, has been superceded by alternate version
-    ###
-
-    global zoomValues
-    maxX = max(points, key=lambda item: item[0])[0]
-    maxY = min(points, key=lambda item: item[1])[1]
-    minX = min(points, key=lambda item: item[0])[0]
-    minY = max(points, key=lambda item: item[1])[1]
-    print(maxX, minX, maxY, minY)
-    #print(maxX - minX, maxY - minY)
-    maxVal =max(maxX - minX, maxY - minY)
-    #print("maxval is ",maxVal)
-    #print("calculated zoom as ",20 -bisect.bisect_right(self.zoomValues,maxVal),bisect.bisect_right(self.zoomValues,maxVal))
-    for i,z in enumerate(zoomValues):
-        diff = maxVal-z
-        print("diff ", diff, z,20-i,diff/z,z/diff)
-        if diff < 0:
-            if abs(diff/z) < 0.15:
-                #print("adding 1 to zoom")
-                zoom = i+1
-            else:
-                zoom = i
-            break
-    #print("second version, zoom is",20 - zoom)
-    return 20 - zoom
+def calculate_zoom_value(points):
+    GLOBE_WIDTH = 256
+    west = min(points, key=lambda item: item[1])[1]
+    east = max(points, key=lambda item: item[1])[1]
+    north = max(points, key=lambda item: item[0])[0]
+    south = min(points, key=lambda item: item[0])[0]
+    print("west,east", west, east, north, south)
+    delta = 0
+    angle = east - west
+    angle2 = north - south  # (latRad(north)-latRad(south))/math.pi
+    print("angles are", angle, angle2)
+    zoom = math.floor(math.log(640 * 360 / angle / GLOBE_WIDTH) / math.log(2)) - delta
+    zoom1 = math.floor(math.log(640 * 360 / angle2 / GLOBE_WIDTH) / math.log(2)) - 1
+    print("zoomes are", zoom, zoom1)
+    if angle2 > angle:
+        angle = angle2
+        delta = 1
+    if (angle < 0):
+        angle += 360
+    zoom = math.floor(math.log(640 * 360 / angle / GLOBE_WIDTH) / math.log(2)) - delta
+    return min(zoom, zoom1)
 
 def latlontopixels(coords,zoom):
     ###
@@ -279,8 +243,9 @@ def load_overview_map_with_markers(points):
 
 def load_overview_map_without_street_labels(points):
     centre = get_centre_of_points_alternate(points, 14)
-    zoom = calculateZoomValueAlternate(points)
+    zoom = calculate_zoom_value(points)
     img = load_high_def_map_without_labels(centre[0], centre[1], zoom)
+    #img.show()
     for point in points:
         print(point)
         print(latlontopixels(point,zoom))
@@ -366,5 +331,4 @@ points = [[	51.375375,-2.303901],[53.39236,-6.39286],[53.39221,-6.39262]]
 #print("centre is--",centre)
 
 points = [[51.375375, -2.303901], [51.373611, -2.304148], [51.357788, -2.315616], [51.357347, -2.315961], [51.343584, -2.316484], [51.337356, -2.319944], [51.330684, -2.317093], [51.332954, -2.317976], [51.310785, -2.305842], [51.309345, -2.306097], [51.286027, -2.30028], [51.283964, -2.300818], [51.28565, -2.300219], [51.254324, -2.260063]]
-centre = get_centre_of_points_alternate(points, 14)
-zoom = calculateZoomValueAlternate(points)
+
