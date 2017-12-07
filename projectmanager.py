@@ -22,7 +22,7 @@ sites = {}
 groups = {}
 groupCount = 1
 current_label = 64
-individual_site_zoom_value = 19
+individual_site_zoom_value = 18
 overview_map_details = []
 jobNumber = ""
 jobName = ""
@@ -48,6 +48,8 @@ def delete_class(index,surveyIndex):
     return len(project["surveys"][surveyType]["classes"])
 
 def add_class(vals,surveyIndex):
+    if project is None:
+        return 0
     surveyType = ["J", "Q", "P"][surveyIndex]
     project["surveys"][surveyType]["classes"].append(vals)
     return len(project["surveys"][surveyType]["classes"])
@@ -82,34 +84,32 @@ def move_class_down(index,surveyIndex):
 ####################################################################################################
 
 def add_group():
-    global groupCount, groups
-    groupName = "Group " + str(groupCount)
-    groupCount+=1
-    groups[groupName] = {}
-    groups[groupName]["siteList"] = []
-    groups[groupName]["coords"] = []
+    global project
+    groupName = "Group " + str(project["groups"])
+    project["groups"][groupName] = {}
+    project["groups"][groupName]["siteList"] = []
+    project["groups"][groupName]["coords"] = []
     return groupName
 
 def delete_group(groupName):
-    global groups,groupCount
-    del groups[groupName]
-    groupCount-=1
-    print(sorted(groups.items(), key=lambda x:0 if x[0] == "ALL" else int(x[0].replace("Group ","").strip())))
-    for index,key in enumerate(sorted(groups.keys(), key=lambda k:0 if k == "ALL" else int(k.replace("Group ","").strip()))):
+    global project
+    del project["groups"][groupName]
+    print(sorted(project["groups"].items(), key=lambda x:0 if x[0] == "ALL" else int(x[0].replace("Group ","").strip())))
+    for index,key in enumerate(sorted(project["groups"].keys(), key=lambda k:0 if k == "ALL" else int(k.replace("Group ","").strip()))):
         print(index,key)
         if key != "ALL":
-            groups["Group " + str(index)] = groups.pop(key)
+            project["groups"]["Group " + str(index)] = groups.pop(key)
 
 def add_site_to_group(groupName,site):
-    global groups
-    groups[groupName]["siteList"].append(site)
+    global project
+    project["groups"][groupName]["siteList"].append(site)
 
 def delete_site_from_group(groupName,site):
-    global groups
-    groups[groupName]["siteList"].remove(site)
+    global project
+    project["groups"][groupName]["siteList"].remove(site)
 
 def get_groups():
-    return groups
+    return project["groups"]
 
 
 ####################################################################################################
@@ -132,8 +132,6 @@ def get_site_by_order(index):
             return site
     return None
 
-
-
 def change_site_image_type(val,site):
     if val ==0:
         val  = "roadmap"
@@ -145,7 +143,6 @@ def change_site_image_type(val,site):
         map.save(str(site["Site Name"]) + ".png")
         site["imageType"] = val
         site["image"] = map.resize((800, 800), Image.ANTIALIAS)
-
 
 def change_site_zoom(site,value):
     if value == "+":
@@ -180,24 +177,6 @@ def change_site_centre_point(site,x,y):
 def change_site_group(site,group):
     sites[site]["group"] = group
 
-def add_arm_to_site(siteName,x,y):
-    global current_label,siteDetails,sites
-    if siteDetails is None:
-        return
-    current_label += 1
-    armName = chr(current_label)
-    edit_arm(siteName, armName, x, y)
-    return chr(current_label)
-
-def delete_arm_from_site(siteName,armName):
-    site = sites.get(siteName, {})
-    print("before delete, site is",site)
-    try:
-        del site["Arms"][armName]
-    except Exception as e:
-        pass
-        ### something went wrong, and the arm didnt exist
-    print("after delete, site is", site)
 
 
 
@@ -209,53 +188,8 @@ def delete_arm_from_site(siteName,armName):
 
 
 
-def decrement_arm_label():
-    global current_label
-    ###
-    ### a label was deleted in the user interface, need to decrement the counter so we give the correct letter
-    ### when requested
-    current_label-=1
 
-def edit_arm(siteName,armName,x,y):
-    print("in edit arm",siteName,armName,x,y)
-    global siteDetails, sites
-    site = sites.get(siteName, {})
-    if site == {}:
-        site["zoom"] = individual_site_zoom_value
-    print("site is", site)
-    site["coords"] = []
-    row = siteDetails[siteDetails["Site Name"] == siteName]
-    siteLatLon = row.values.tolist()[0][1:]
-    print("sitelatlon is",siteLatLon)
-    armLatLon = mapmanager.get_lat_lon_from_x_y(siteLatLon, x, y, site["zoom"])
-    site["coords"]=mapmanager.get_coords(overview_map_details[1],siteLatLon,overview_map_details[2],size=1280)
-    print("location for arm is", armLatLon)
-    site["Arms"][armName] = {}
-    site["Arms"][armName]["latlon"] = armLatLon
-    site["Arms"][armName]["coords"] = (x, y)
-    site["Arms"][armName]["road"] = mapmanager.get_road_name(armLatLon[0], armLatLon[1])
-    print("road for arm is",site["Arms"][armName]["road"])
-    site["Arms"][armName]["orientation"] = 0
-    print("site is now", site)
-    print("")
-    sites[siteName] = site
 
-def edit_arm_orientation(siteName,armName,orientation):
-    global siteDetails, sites
-    site = sites.get(siteName, {})
-    #print("in edit arm, params are", siteName, armName, x, y)
-    site["Arms"][armName]["orientation"] = orientation
-    print("site is now", site)
-
-def get_site_map(siteName):
-    print("looking for ",str(siteName) + ".png")
-    try:
-        img = Image.open(str(siteName) + ".png")
-        img = img.resize((800, 800), Image.ANTIALIAS)
-        print("returning")
-        return ImageTk.PhotoImage(img)
-    except Exception as e:
-        return None
 
 def get_overview_map():
     try:
@@ -355,7 +289,7 @@ def import_site_details_from_excel():
         surveyTypes = site[3].split("/")
         project["sites"][site[0]] = {}
         project["sites"][site[0]]["order"] = index
-        project["sites"][site[0]]["site Name"] = site[0]
+        project["sites"][site[0]]["Site Name"] = site[0]
         project["sites"][site[0]]["surveys"] ={}
         for survey in surveyTypes:
             project["sites"][site[0]]["surveys"][survey] = {}
@@ -383,9 +317,10 @@ def load_project():
     for _,site in sites.items():
         site["coords"] = mapmanager.get_coords(overview_map_details[1],site["latlon"],overview_map_details[2],size=1280)
     download_all_individual_site_maps()
-    groups["ALL"] = {}
-    groups["ALL"]["siteList"] = [site["Site Name"] for _,site in sites.items()]
-    groups["ALL"]["coords"] = []
+    project["groups"] = {}
+    project["groups"]["ALL"] = {}
+    project["groups"]["ALL"]["siteList"] = [site["Site Name"] for _,site in sites.items()]
+    project["groups"]["ALL"]["coords"] = []
     with open("test" + ".pkl", "wb") as f:
         pickle.dump(project, f)
     with open("test" + ".pkl", "rb") as f:
@@ -398,8 +333,12 @@ def load_project():
 
 
 def save_project_to_pickle(file):
+    print("saving project")
+    for key,item in project["sites"].items():
+        print(item)
     with open(file + ".pkl","wb") as f:
         pickle.dump(project,f)
+    return
     global sites,groups,project
     file = file.replace(".pkl","")
     sitesToSave = {}
@@ -432,30 +371,16 @@ def save_project_to_pickle(file):
 
 def load_project_from_pickle(file):
     global sites,groups,jobName, jobNumber, surveyDate, timePeriods,groupCount,projectClasses,project
-    with open("test" + ".pkl", "rb") as f:
+    with open(file, "rb") as f:
         project = pickle.load(f)
+    for siteName,site in project["sites"].items():
+        for surveyType,survey in site["surveys"].items():
+            for label,arm in survey["Arms"].items():
+                arm["entry widget"] = None
+
     return get_site_by_order(0)
 
 
-
-    if ".pkl" in file:
-        try:
-            with open(file, "rb") as f:
-                project = pickle.load(f)
-                print("loaded project is",project)
-                sites = project["sites"]
-                groups=project["groups"]
-                groupCount = len(groups)
-                details = project["details"]
-                projectClasses = project["classes"]
-                jobName, jobNumber, surveyDate, timePeriods = details
-                download_overview_map()
-                return get_site_by_order(0)
-        except Exception as e:
-            print(e)
-            return None
-
-    return None
 
 def load_previous_site(site):
     ###
