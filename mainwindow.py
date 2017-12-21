@@ -78,6 +78,14 @@ class MainWindow(tkinter.Tk):
         self.mapLabel = tkinter.Label(self, text="", font=f, fg=self.tracsisBlue,bg="light blue",relief=tkinter.GROOVE,borderwidth=2)
         self.mapLabel.grid(row = 0,column = 1,sticky="nsew")
         tkinter.Button(self.detailsPanel,text="Export",command=self.export_to_excel).grid(row=4,column=0,sticky="nsew",padx=3)
+        frame = tkinter.Frame(self.detailsPanel)
+        for col,surveyType in enumerate(["JTC","Queue","Ped"]):
+            var = tkinter.IntVar()
+            c = tkinter.Checkbutton(frame,text=surveyType,variable=var)
+            c.grid(row=0,column=col)
+            c.var = var
+            #c.var.set(1)
+        frame.grid(row=5,column=0)
         frame = tkinter.Frame(self)
         tkinter.Button(frame, text="<", command=lambda:self.decrement_map(None),width = 4,height = 2).grid(row=0, column=0,padx = 5,rowspan=2)
         tkinter.Button(frame, text="+", command=lambda:self.change_site_zoom("+"),width = 4,height = 2).grid(row=0, column=1,padx = 5,rowspan=2)
@@ -160,7 +168,7 @@ class MainWindow(tkinter.Tk):
         e.grid(row=0, column=1, sticky="nsew")
         e = tkinter.Entry(frame, textvariable=self.jobNumVar, font=f2)
         e.grid(row=1, column=1, sticky="nsew")
-        e = tkinter.Entry(frame, textvariable=self.jobNameVar, font=f2)
+        e = tkinter.Entry(frame, font=f2)
         self.surveyDateVar = tkinter.StringVar()
         self.timesVar = tkinter.StringVar()
 
@@ -193,11 +201,13 @@ class MainWindow(tkinter.Tk):
         ### Groups
         ###
 
-        frame = tkinter.Frame(frame, bg="red",width=classesframe.winfo_reqwidth())
-        frame.grid(row=9,column=0, columnspan=2, sticky="nsew")
+
+        #frame.grid_propagate(False)
         tkinter.Label(frame, text="Groups", font=f, fg=self.tracsisBlue, relief=tkinter.GROOVE, bg="light blue").grid(
-            row=10, column=0, columnspan=4, sticky="nsew")
+            row=9, column=0, columnspan=4, sticky="nsew")
         cols = ["Group"]
+        frame = tkinter.Frame(frame, bg="white")
+        frame.grid(row=10, column=0, columnspan=4, sticky="nsew")
         self.groupsTree = ttk.Treeview(frame, columns=cols, height=7, show="headings", selectmode="browse")
         self.groupsTree.bind("<<TreeviewSelect>>", self.display_group)
         self.groupsTree.bind("<Double-Button-1>", self.delete_group)
@@ -206,7 +216,7 @@ class MainWindow(tkinter.Tk):
         self.groupsTree.tag_configure("even", background="azure2", foreground=self.tracsisBlue)
         for i, c in enumerate(cols):
             self.groupsTree.heading(i, text=c)  #
-        self.groupsTree.column(0, width=100, anchor=tkinter.CENTER)
+        self.groupsTree.column(0, width=120, anchor=tkinter.CENTER)
         self.groupsTree.grid(row=11, column=0)
         # self.groupsTree.insert("","end",values= ["Group 1"],tags =("tree", "odd") )
 
@@ -329,7 +339,9 @@ class MainWindow(tkinter.Tk):
 
         tkinter.Button(frame, text="Add", command=self.add_class, width=6).grid(row=8, column=0, sticky="nsew",columnspan=2)
 
+        frame = tkinter.Frame(frame, bg="red")
 
+        frame.grid(row=9, column=0, columnspan=4, sticky="nsew")
 
     ##########################################################################################################################
     ###
@@ -689,13 +701,18 @@ class MainWindow(tkinter.Tk):
 
     ########################################################################################################################
     ###
-    ### methods to deal with the site maps,importing, exporting projects etc
+    ### methods to deal with the site aps,importing, exporting projects etc
     ###
     ########################################################################################################################
 
     def change_site_image_type(self):
-        projectmanager.change_site_image_type(self.imageTypeVar.get(),self.currentSite)
-        self.redraw_map_with_labels()
+        map = self.nametowidget(self.mapTabs.select()).winfo_children()[0]
+        print("surveytype is", map.surveyType)
+        projectmanager.change_site_image_type(self.imageTypeVar.get(),self.currentSite,map.surveyType)
+        print("map widget is", map, type(map))
+        print(map.surveyType)
+        map.clear_all()
+        map.display_site()
 
     def load_project(self):
         #self.mapPanel.delete(tkinter.ALL)
@@ -735,6 +752,21 @@ class MainWindow(tkinter.Tk):
         print("project details are",projectDetails)
         self.jobNameVar.set(projectDetails[0])
         self.jobNumVar.set(projectDetails[1])
+        for i,survey in enumerate(["J"]):
+            print("--" * 100)
+            frame = self.surveyTabs.tabs()[i]
+            frame = self.nametowidget(frame)  #.winfo_children()[14]
+            children = frame.winfo_children()
+            for child in children:
+                print("---",type(child))
+            surveyDets = projectmanager.get_survey_details(survey)
+            children[8].delete(0,"end")
+            children[8].insert(0,datetime.datetime.strftime(surveyDets[0],"%d/%m/%Y"))
+            children[9].delete('1.0', tkinter.END)
+            children[9].insert(tkinter.END,surveyDets[1])
+            children[10].set(surveyDets[2])
+            self.update()
+            #children[16].config(width=frame.winfo_reqwidth())
 
         self.load_overview_map()
         self.display_classes()
@@ -743,12 +775,12 @@ class MainWindow(tkinter.Tk):
         for child in self.siteDisplayFrame.winfo_children():
             child.destroy()
         self.mapLabel.configure(text=self.currentSite["Site Name"])
-        nb = ttk.Notebook(self.siteDisplayFrame)
-        nb.bind("<<NotebookTabChanged>>",self.survey_type_changed)
-        nb.grid(row=0,column=0)
-        for surveyType,survey in self.currentSite["surveys"].items():
+        self.mapTabs = ttk.Notebook(self.siteDisplayFrame)
+        self.mapTabs.bind("<<NotebookTabChanged>>",self.survey_type_changed)
+        self.mapTabs.grid(row=0,column=0)
+        for surveyType,survey in sorted(self.currentSite["surveys"].items()):
             frame = tkinter.Frame(self.siteDisplayFrame)
-            nb.add(frame, text=surveyTypes[surveyType])
+            self.mapTabs.add(frame, text=surveyTypes[surveyType])
             map = mapViewer.MapViewer(frame,800,800,surveyType=surveyType)
             map.set_site(self.currentSite)
             map.grid(row=0,column=0)
@@ -760,10 +792,25 @@ class MainWindow(tkinter.Tk):
         print("selected tab is",nb.index(nb.select()))
 
     def change_site_zoom(self,value):
-        projectmanager.change_site_zoom(self.currentSite,value)
-        self.redraw_map_with_labels()
+        map = self.nametowidget(self.mapTabs.select()).winfo_children()[0]
+        print("surveytype is",map.surveyType)
+        projectmanager.change_site_zoom(self.currentSite,value,map.surveyType)
+
+        #widget = self.nametowidget(self.surveyTabs.select())
+        print("map widget is", map, type(map))
+        print(map.surveyType)
+        map.clear_all()
+        map.display_site()
+        #self.display_site()
 
     def export_to_excel(self):
+        frame = self.detailsPanel.winfo_children()[5]
+        for i in range(3):
+            if self.nametowidget(frame.winfo_children()[i]).var.get() == 1:
+               projectmanager.export_to_excel(i)
+        messagebox.showinfo(message="Export Complete")
+        return
+
         jobDetails = {}
         try:
             surveyDate = datetime.datetime.strptime(self.surveyDateVar.get(),"%d/%m/%Y")
@@ -807,15 +854,12 @@ class MainWindow(tkinter.Tk):
     def increment_map(self,event):
         print("pressed right arrow")
         self.currentSite = projectmanager.load_next_site(self.currentSite)
-        print("currenty site is",self.currentSite)
-        self.redraw_map_with_labels()
+        self.display_site()
 
     def decrement_map(self,event):
         print("pressed left arrow")
         self.currentSite = projectmanager.load_previous_site(self.currentSite)
-        self.redraw_map_with_labels()
-
-
+        self.display_site()
 
     def load_map_panel_map(self,siteName):
         self.mapPanelImage = ImageTk.PhotoImage(self.currentSite["image"])
@@ -825,9 +869,6 @@ class MainWindow(tkinter.Tk):
             self.mapPanel.delete(child)
         self.mapPanel.create_image(5, 5, image=self.mapPanelImage, anchor=tkinter.NW,tags=("map",))
         self.mapPanel.configure(width=self.mapPanelSize,height=self.mapPanelSize)
-
-
-
 
     def rollWheel(self,event):
         if self.baseImage == None:
