@@ -250,6 +250,7 @@ class MapViewer(tkinter.Canvas):
         print("self.activity is",self.activity,"control down is",self.controlDown)
         x = event.x - self.canvasx(0)
         y = event.y - self.canvasy(0)
+        print("coords are",event.x,event.y,x,y)
         if self.activity is None:
             if self.controlDown:
                 self.activity = "drawing line"
@@ -258,6 +259,7 @@ class MapViewer(tkinter.Canvas):
                 arm = {}
                 arm["coords"] = [x,y]
                 armLatLon = mapmanager.get_lat_lon_from_x_y(self.site["surveys"][self.surveyType]["latlon"], x, y, self.site["surveys"][self.surveyType]["zoom"])
+                arm["latlon"] = armLatLon
                 arm["road name"] = mapmanager.get_road_name(armLatLon[0], armLatLon[1])
                 arm["entry widget coords"] = None
                 arm["line vertices"] = [x,y,x+10,y+10]

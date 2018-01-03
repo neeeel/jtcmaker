@@ -85,20 +85,28 @@ def move_class_down(index,surveyIndex):
 
 def add_group():
     global project
-    groupName = "Group " + str(project["groups"])
+    if len(project["groups"]) == 1:
+        groupName = "Group 1"
+    else:
+        groupList = sorted([int(key.split(" ")[1]) for key,_ in project["groups"].items() if key != "ALL"])
+        groupName = "Group " + str(groupList[-1] + 1)
     project["groups"][groupName] = {}
     project["groups"][groupName]["siteList"] = []
     project["groups"][groupName]["coords"] = []
+    project["groups"][groupName]["image"] = None
     return groupName
 
 def delete_group(groupName):
     global project
     del project["groups"][groupName]
-    print(sorted(project["groups"].items(), key=lambda x:0 if x[0] == "ALL" else int(x[0].replace("Group ","").strip())))
+    print("ahahah",project["groups"].items())
+    print(sorted(project["groups"].keys(), key=lambda x:0 if x == "ALL" else int(x.replace("Group ","").strip())))
     for index,key in enumerate(sorted(project["groups"].keys(), key=lambda k:0 if k == "ALL" else int(k.replace("Group ","").strip()))):
         print(index,key)
         if key != "ALL":
-            project["groups"]["Group " + str(index)] = groups.pop(key)
+            project["groups"]["Group " + str(index)] = project["groups"].pop(key)
+    print(sorted(project["groups"].keys(), key=lambda x: 0 if x == "ALL" else int(x.replace("Group ", "").strip())))
+
 
 def add_site_to_group(groupName,site):
     global project
@@ -188,9 +196,9 @@ def change_site_group(site,group):
 
 def get_overview_map():
     try:
-        img = Image.open("overview.png")
+        img = project["survey details"]["J"]["overview image"]
         #img = img.resize((800, 800), Image.ANTIALIAS)
-        coordsList = [(site["Site Name"],mapmanager.get_coords(overview_map_details[1],site["latlon"],overview_map_details[2],size=1280)) for _,site in sites.items()]
+        coordsList = [(site["Site Name"],mapmanager.get_coords(project["survey details"]["J"]["overview centre"],site["surveys"]["J"]["latlon"],project["survey details"]["J"]["overview zoom"],size=1280)) for _,site in project["sites"].items()]
         print("Coord list is",coordsList)
         return [img,coordsList]
     except Exception as e:
@@ -293,6 +301,8 @@ def import_site_details_from_excel():
             project["sites"][site[0]]["surveys"][survey] = {}
             project["sites"][site[0]]["surveys"][survey]["Arms"] = {}
             project["sites"][site[0]]["surveys"][survey]["zoom"] = individual_site_zoom_value
+            if survey.upper() == "J":
+                project["sites"][site[0]]["surveys"][survey]["zoom"]+=1
             if survey.upper() == "Q":
                 project["sites"][site[0]]["surveys"][survey]["imageType"] = "satellite"
             else:
@@ -307,13 +317,14 @@ def load_project():
     if siteDetails is None:
         return None
     download_overview_map()
-    for _,site in sites.items():
-        site["coords"] = mapmanager.get_coords(overview_map_details[1],site["latlon"],overview_map_details[2],size=1280)
+    for _,site in project["sites"].items():
+        site["coords"] = mapmanager.get_coords(overview_map_details[1],site["surveys"]["J"]["latlon"],overview_map_details[2],size=1280)
     download_all_individual_site_maps()
     project["groups"] = {}
     project["groups"]["ALL"] = {}
-    project["groups"]["ALL"]["siteList"] = [site["Site Name"] for _,site in sites.items()]
-    project["groups"]["ALL"]["coords"] = []
+    project["groups"]["ALL"]["siteList"] = [site["Site Name"] for _,site in project["sites"].items()]
+    project["groups"]["ALL"]["coords"] = [site["coords"] for _,site in project["sites"].items()]
+    project["groups"]["ALL"]["image"] = None
     with open("test" + ".pkl", "wb") as f:
         pickle.dump(project, f)
     with open("test" + ".pkl", "rb") as f:
@@ -362,6 +373,7 @@ def load_project_from_pickle(file):
     global sites,groups,jobName, jobNumber, surveyDate, timePeriods,groupCount,projectClasses,project
     with open(file, "rb") as f:
         project = pickle.load(f)
+    print("[project is",project)
     for siteName,site in project["sites"].items():
         for surveyType,survey in site["surveys"].items():
             for label,arm in survey["Arms"].items():
@@ -398,11 +410,12 @@ def load_next_site(site):
 
 def export_to_excel(index):
     if index == 0:
+        print("exporting JTC")
         export_JTC_to_excel()
     if index == 1:
         export_Q_to_excel()
 
-def export_JTC_to_excel(jobDetails):
+def export_JTC_to_excel():
     global groups
     file = filedialog.asksaveasfilename()
     if file == "" or file is None:
@@ -436,149 +449,156 @@ def export_JTC_to_excel(jobDetails):
     c1.title = "Total Volumes"
     sht.add_chart(c1, "M25")
 
-
-
     sht = wb.get_sheet_by_name("Data")
-    sht.cell(row=2,column=14).value = ",".join(jobDetails["times"])
-    sht.cell(row=3, column=14).value = jobDetails["period"]
-    sht.cell(row=4, column=14).value = jobNumber
-    sht.cell(row=5, column=14).value = jobName
-    sht.cell(row=6,column=14).value = surveyDate.strftime("%d/%m/%Y")
-    for index,cl in enumerate(projectClasses):
-        sht.cell(row=index+2, column=50).value = cl[0]
+    sht.cell(row=2, column=14).value = project["survey details"]["J"]["times"]
+    sht.cell(row=3, column=14).value = project["survey details"]["J"]["period"]
+    sht.cell(row=4, column=14).value = project["jobNumber"]
+    sht.cell(row=5, column=14).value = project["jobName"]
+    sht.cell(row=6, column=14).value = project["survey details"]["J"]["date"]
+    for index, cl in enumerate(project["survey details"]["J"]["classes"]):
+        sht.cell(row=index + 2, column=50).value = cl[0]
         sht.cell(row=index + 2, column=52).value = cl[1]
     row = 2
+
 
     fnt = ImageFont.truetype("arial", size=18)
 
     count = 0
-    for key,site in sorted(sites.items(),key=lambda x:x[1]["order"]): ### sorted(sites.items(),key=lambda x:int(x[0].replace("Site ","").strip())):
+    for key,site in sorted(project["sites"].items(),key=lambda x:x[1]["order"]): ### sorted(sites.items(),key=lambda x:int(x[0].replace("Site ","").strip())):
+        print("checking",site)
+        if "J" in site["surveys"]:
+            ###
+            ### check and adjust road names if any are duplicated within a site
+            ###
+            print("here")
+            dets = [[k, i["orientation"] + 180, i["road name"]] for k, i in site["surveys"]["J"]["Arms"].items()]
+            mylist = [item["road name"] for key, item in site["surveys"]["J"]["Arms"].items()]
+            print([(item["road name"],key) for key, item in site["surveys"]["J"]["Arms"].items()])
+            print("list of roads",mylist)
+            for road in mylist:
+                matches = [x for x in dets if x[2] == road]
+                if len(matches) > 1:
+                    print("matches are",matches)
+                    for m in matches:
 
-        ###
-        ### check and adjust road names if any are duplicated within a site
-        ###
-        print("here")
-        dets = [[k, i["orientation"] + 180, i["road"]] for k, i in site["Arms"].items()]
-        mylist = [item["road"] for key, item in site["Arms"].items()]
-        print([(item["road"],key) for key, item in site["Arms"].items()])
-        print("list of roads",mylist)
-        for road in mylist:
-            matches = [x for x in dets if x[2] == road]
-            if len(matches) > 1:
-                print("matches are",matches)
-                for m in matches:
+                        road = m[2] + "(" + road_orientation(m[1]) + ")"
+                        site["surveys"]["J"]["Arms"][m[0]]["road"] = road
 
-                    road = m[2] + "(" + road_orientation(m[1]) + ")"
-                    site["Arms"][m[0]]["road"] = road
+            sht = wb.get_sheet_by_name("Maps")
+            sht.cell(row=count+2,column=1).value = key
+            sht.cell(row=count+2,column=13).value = "No relevant observations"
+            sht = wb.get_sheet_by_name("Data")
+            siteImg = site["surveys"]["J"]["image"].convert('RGB')
+            siteImg = siteImg.resize((800, 800), Image.ANTIALIAS)
+            drawimage = ImageDraw.Draw(siteImg)
+            if len(site["surveys"]["J"]["Arms"]) !=0:
+                col = 4
+                sht.cell(row=row,column=1).value = key
 
-        sht = wb.get_sheet_by_name("Maps")
-        sht.cell(row=count+2,column=1).value = key
-        sht.cell(row=count+2,column=13).value = "No relevant observations"
-        sht = wb.get_sheet_by_name("Data")
-        siteImg = Image.open(key + ".png").convert('RGB')
-        siteImg = siteImg.resize((800, 800), Image.ANTIALIAS)
-        drawimage = ImageDraw.Draw(siteImg)
-        if len(site["Arms"]) !=0:
-            col = 4
-            sht.cell(row=row,column=1).value = key
-            sht.cell(row=row , column=2).value = str(site["coords"][0]) + "," + str(site["coords"][1])
-            sht.cell(row=row , column=3).value = str(site["latlon"][0]) + "," + str(site["latlon"][1])
-            for label,arm in sorted(site["Arms"].items()):
-                angle = arm["orientation"]
-                x,y = arm["coords"]
-                outline = 3  # line thickness
+                sht.cell(row=row , column=2).value = str(site["coords"][0]) + "," + str(site["coords"][1])
+                sht.cell(row=row , column=3).value = str(site["surveys"]["J"]["latlon"][0]) + "," + str(site["surveys"]["J"]["latlon"][1])
+                for label,arm in sorted(site["surveys"]["J"]["Arms"].items()):
+                    angle = arm["orientation"] + 180
+                    if angle > 360:
+                        angle-=360
+                    x,y = [c-5 for c in arm["coords"]]
+                    outline = 3  # line thickness
 
-                drawimage.ellipse([x - 15- outline, y - 15- outline, x + 15+ outline, y + 15+ outline], outline="Black",fill = "black")
-                drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white",fill = "white")
-                drawimage.text((x-6, y-7), text=label,font=fnt, fill="black")
-                angle += 180
-                if angle >= 360:
-                    angle-=360
-                sht.cell(row=row, column=col).value = label + "," + str(angle) + "," + arm["road"] + "," + str(x*excelMapWidth/800) + "," + str(y*excelMapHeight/800)    ### convert coords to fit a 500x500 map
-                #sht.cell(row=row , column=col+1).value = angle
-                #sht.cell(row=row, column=col + 2).value = arm["road"]
-                print("outputting", label + "," + str(angle) + "," + arm["road"] + "," + str(x*excelMapWidth/800) + "," + str(y*excelMapHeight/800))
-                col+=1
-            row+=1
-        folder = os.path.dirname(os.path.abspath(__file__))
-        #folder = os.path.join(folder, "Runs\\")
-        siteImg.save(folder + "/" + key + " with arm labels" + ".png")
-        img2 = Image.open(key + " with arm labels.png")
-        img2 = img2.resize((500, 500), Image.ANTIALIAS)
-        excelMapImage = openpyxl.drawing.image.Image(img2)
-        sht = wb.get_sheet_by_name("Maps")
-        sht.add_image(excelMapImage, "B" + str(2 + count))
+                    drawimage.ellipse([x - 15- outline, y - 15- outline, x + 15+ outline, y + 15+ outline], outline="Black",fill = "black")
+                    drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white",fill = "white")
+                    drawimage.text((x-6, y-7), text=label,font=fnt, fill="black")
+                    angle += 180
+                    if angle >= 360:
+                        angle-=360
+                    sht.cell(row=row, column=col).value = label + "," + str(angle) + "," + arm["road name"] + "," + str((x-5)*excelMapWidth/800) + "," + str((y-5)*excelMapHeight/800)    ### convert coords to fit a 500x500 map
+                    #sht.cell(row=row , column=col+1).value = angle
+                    #sht.cell(row=row, column=col + 2).value = arm["road"]
+                    print("outputting", label + "," + str(angle) + "," + arm["road name"] + "," + str(x*excelMapWidth/800) + "," + str(y*excelMapHeight/800))
+                    col+=1
+                row+=1
+            folder = os.path.dirname(os.path.abspath(__file__))
+            #folder = os.path.join(folder, "Runs\\")
+            siteImg.save(folder + "/" + key + " with arm labels" + ".png")
+            img2 = Image.open(key + " with arm labels.png")
+            img2 = img2.resize((500, 500), Image.ANTIALIAS)
+            excelMapImage = openpyxl.drawing.image.Image(img2)
+            sht = wb.get_sheet_by_name("Maps")
+            sht.add_image(excelMapImage, "B" + str(2 + count))
 
-        count+=1
+            count+=1
 
     count = 0
     ###
     ### remove any groups that have no sites attached
     ###
-    groups = {k:v for k,v in groups.items() if len(v["siteList"]) != 0}
-    for index,key in enumerate(sorted(groups.keys(), key=lambda k:0 if k == "ALL" else int(k.replace("Group ","").strip()))):
+    project["groups"] = {k:v for k,v in project["groups"].items() if len(v["siteList"]) != 0}
+    for index,key in enumerate(sorted(project["groups"].keys(), key=lambda k:0 if k == "ALL" else int(k.replace("Group ","").strip()))):
         print(index,key)
         if key != "ALL":
-            groups["Group " + str(index)] = groups.pop(key)
+            project["groups"]["Group " + str(index)] = project["groups"].pop(key)
     ###
     ### output groups
     ###
 
-    for key,group in sorted(groups.items(), key=lambda x:0 if x[0] == "ALL" else int(x[0].replace("Group ","").strip())):
+    for key,group in sorted(project["groups"].items(), key=lambda x:0 if x[0] == "ALL" else int(x[0].replace("Group ","").strip())):
         print("key,value",key,group)
-        download_group_map(key)
-        img2 = Image.open(key + ".png")
-        excelMapImage = openpyxl.drawing.image.Image(img2)
-        sht = wb.get_sheet_by_name("Maps")
-        sht.add_image(excelMapImage, "G" + str(2 + count))
-        sht.cell(row=count + 2, column=6).value = key
+        if key != "ALL":
+            download_group_map(key)
+            img2 = project["groups"][key]["image"]
+            excelMapImage = openpyxl.drawing.image.Image(img2)
+            sht = wb.get_sheet_by_name("Maps")
+            sht.add_image(excelMapImage, "G" + str(2 + count))
+            sht.cell(row=count + 2, column=6).value = key
 
-        sht = wb.get_sheet_by_name("Data")
-        sht.cell(row=count + 100, column= 1).value = key
-        for i,site in enumerate(group["coords"]):
-            armData = []
-            siteName = site[0]
-            siteLatLon = sites[siteName]["latlon"]
-            for armLabel,arm in sorted(sites[siteName]["Arms"].items()):
-                armLatLon = arm["latlon"]
-                pixelDistance = mapmanager.pixelDistance(siteLatLon[0],siteLatLon[1],armLatLon[0],armLatLon[1],group["zoom"])
-                armData.append(armLabel)
-                armData.append(pixelDistance[0])
-                armData.append((pixelDistance[1]))
-            sht.cell(row=count + 100, column=i+2).value = ",".join(map(str,site)) + "," + ",".join(map(str,armData))
+            sht = wb.get_sheet_by_name("Data")
+            sht.cell(row=count + 100, column= 1).value = key
+            for i,site in enumerate(group["coords"]):
+                armData = []
+                siteName = site[0]
+                siteLatLon = project["sites"][siteName]["surveys"]["J"]["latlon"]
+                for armLabel,arm in sorted(project["sites"][siteName]["surveys"]["J"]["Arms"].items()):
+                    armLatLon = arm["latlon"]
+                    pixelDistance = mapmanager.pixelDistance(siteLatLon[0],siteLatLon[1],armLatLon[0],armLatLon[1],group["zoom"])
+                    armData.append(armLabel)
+                    armData.append(pixelDistance[0])
+                    armData.append((pixelDistance[1]))
+                sht.cell(row=count + 100, column=i+2).value = ",".join(map(str,site)) + "," + ",".join(map(str,armData))
+            count+=1
+
+
 
         ###
         ### create the overview map showing the sites in the group in red
         ### and the other sites in black
         ###
 
-        img2 = Image.open("overview.png").convert('RGB')
-        drawimage = ImageDraw.Draw(img2)
-        fnt = ImageFont.truetype("arial", size=18)
-        sitesInGroup = group["siteList"]
-        if len(sitesInGroup) > 0:
-            print("sitesingroup",sitesInGroup)
-            siteList = [(site[0], site[1], site[2]) for site in get_all_site_details()]
-            for site in siteList:
-                if site[0] in sitesInGroup:
-                    colour = "red"
-                else:
-                    colour  = "black"
-                x, y = mapmanager.get_coords(overview_map_details[1], (site[1], site[2]), overview_map_details[2], size=1280)
-                drawimage.ellipse([x - 15 - outline, y - 15 - outline, x + 15 + outline, y + 15 + outline], outline=colour,fill=colour)
-                drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white", fill="white")
-                drawimage.text((x - 8, y - 9), text=site[0].split(" ")[1], font=fnt, fill="black")
-            img2.save(key  + "_sites.png")
-            img2 = Image.open(key  + "_sites.png")
-            excelMapImage = openpyxl.drawing.image.Image(img2)
-            sht = wb.get_sheet_by_name("Maps")
-            sht.add_image(excelMapImage, "H" + str(2 + count))
-            count += 1
+        #img2 = Image.open("overview.png").convert('RGB')
+        #drawimage = ImageDraw.Draw(img2)
+        #fnt = ImageFont.truetype("arial", size=18)
+        #sitesInGroup = project["groups"]["siteList"]
+        #if len(sitesInGroup) > 0:
+            #print("sitesingroup",sitesInGroup)
+            #siteList = [(site[0], site[1], site[2]) for site in get_all_site_details()]
+            #for site in siteList:
+                #if site[0] in sitesInGroup:
+                    #colour = "red"
+                #else:
+                    #colour  = "black"
+                #x, y = mapmanager.get_coords(overview_map_details[1], (site[1], site[2]), overview_map_details[2], size=1280)
+                #drawimage.ellipse([x - 15 - outline, y - 15 - outline, x + 15 + outline, y + 15 + outline], outline=colour,fill=colour)
+                #drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white", fill="white")
+                #drawimage.text((x - 8, y - 9), text=site[0].split(" ")[1], font=fnt, fill="black")
+            #img2.save(key  + "_sites.png")
+            #img2 = Image.open(key  + "_sites.png")
+            #excelMapImage = openpyxl.drawing.image.Image(img2)
+            #sht = wb.get_sheet_by_name("Maps")
+            #sht.add_image(excelMapImage, "H" + str(2 + count))
+            #count += 1
 
     print("saving")
     try:
 
-        wb.save(filename=file + ".xlsm")
+        wb.save(filename=file + " JTC .xlsm")
     except PermissionError as e:
         messagebox.showinfo(message="file is already open, please close file and retry exporting")
         return
@@ -625,7 +645,7 @@ def export_Q_to_excel():
     sht.cell(row=4, column=14).value = project["jobNumber"]
     sht.cell(row=5, column=14).value = project["jobName"]
     sht.cell(row=6,column=14).value = project["survey details"]["Q"]["date"]
-    for index,cl in enumerate(projectClasses):
+    for index,cl in enumerate(project["survey details"]["Q"]["classes"]):
         sht.cell(row=index+2, column=50).value = cl[0]
         sht.cell(row=index + 2, column=52).value = cl[1]
     row = 2
@@ -664,7 +684,7 @@ def export_Q_to_excel():
                 sht.cell(row=row , column=3).value = str(site["surveys"]["Q"]["latlon"][0]) + "," + str(site["surveys"]["Q"]["latlon"][1])
                 for label,arm in sorted(site["surveys"]["Q"]["Arms"].items()):
                     angle = arm["orientation"]
-                    coords = [c*excelMapWidth/800 for c in arm["line vertices"]]
+                    coords = [(c-5)*excelMapWidth/800 for c in arm["line vertices"]]
                     coords = ",".join(list(map(str,coords)))
                     x,y = arm["line vertices"][:2]
                     outline = 3  # line thickness
@@ -697,7 +717,7 @@ def export_Q_to_excel():
     print("saving")
     try:
 
-        wb.save(filename=file + ".xlsm")
+        wb.save(filename=file + " Queues .xlsm")
     except PermissionError as e:
         messagebox.showinfo(message="file is already open, please close file and retry exporting")
         return
@@ -713,7 +733,6 @@ def get_all_site_coords():
 def get_all_site_details():
     print("in get site details",sites)#
     print([site["Site Name"] + site["latlon"] for k, site in sites.items()])
-
     return [site["Site Name"] + site["latlon"] for k, site in sites.items()]
 
 def download_all_individual_site_maps():
@@ -727,36 +746,40 @@ def download_all_individual_site_maps():
             map.save(siteName + ".png")
 
 def download_overview_map():
-    global overview_map_details
+    global overview_map_details,project
     points = get_all_site_coords()
     print("in overview map points are",points)
     overview_map_details = mapmanager.load_overview_map_without_street_labels(points)
     overview_map_details[0].save("overview.png")
     #overview_map_details[0].show()
+    project["survey details"]["J"]["overview centre"] = overview_map_details[1]
+    project["survey details"]["J"]["overview zoom"] = overview_map_details[2]
+    project["survey details"]["J"]["overview image"] = overview_map_details[0]
     print("centre of overview map is",overview_map_details[1],"zoom is",overview_map_details[2])
 
 def download_group_map(groupName):
-    grpList = groups[groupName]["siteList"]
-    if len(grpList)== 0:
-        return False
-    groups[groupName]["coords"] = []
-    print("grplist is",grpList)
-    coordsList = [(site[1],site[2]) for site in get_all_site_details() if site[0] in grpList] ### coordsList is the list of lat/lons for each site in the group
+    if not project["groups"][groupName]["image"] is None:
+        return project["groups"][groupName]["image"]
+    siteList = project["groups"][groupName]["siteList"]
+    if len(siteList)== 0:
+        return project["survey details"]["J"]["overview image"]
+    project["groups"][groupName]["coords"] = []
+    print("site list is",siteList)
+    coordsList = [site["surveys"]["J"]["latlon"] for _,site in project["sites"].items() if site["Site Name"] in siteList] ### coordsList is the list of lat/lons for each site in the group
     print("coordslist is",coordsList)
     map_details = mapmanager.load_overview_map_without_street_labels(coordsList)
-    groups[groupName]["zoom"] = map_details[2]
-    map_details[0].save(groupName + ".png")
-    img2 = Image.open(groupName + ".png").convert('RGB')
+    project["groups"][groupName]["zoom"] = map_details[2]
+    img2 = map_details[0].convert("RGB")
     drawimage = ImageDraw.Draw(img2)
     fnt = ImageFont.truetype("arial", size=18)
-    siteList = [(site[0],site[1],site[2]) for site in get_all_site_details() if site[0] in grpList]
     for site in siteList:
-        x,y = mapmanager.get_coords(map_details[1],(site[1],site[2]),map_details[2],size=1280)
-        groups[groupName]["coords"].append([site[0],x,y])
+        x,y = mapmanager.get_coords(map_details[1],project["sites"][site]["surveys"]["J"]["latlon"],map_details[2],size=1280)
+        project["groups"][groupName]["coords"].append([site,x,y])
         drawimage.ellipse([x - 15- outline, y - 15- outline, x + 15+ outline, y + 15+ outline], outline="Black",fill = "black")
         drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white",fill = "white")
-        drawimage.text((x-8, y-9), text=site[0].split(" ")[1],font=fnt, fill="black")
-    img2.save(groupName + ".png")
+        drawimage.text((x-8, y-9), text=site.split(" ")[1],font=fnt, fill="black")
+    project["groups"][groupName]["image"] = img2
+    return project["groups"][groupName]["image"]
 
 def road_orientation(angle):
     if angle > 360:

@@ -222,7 +222,7 @@ class MainWindow(tkinter.Tk):
 
         self.groupList = tkinter.Listbox(frame)
         self.groupList.bind("<Double-Button-1>", self.delete_site_from_group)
-        self.groupList.bind("<Button-3>", self.show_group_map)
+        #self.groupList.bind("<Button-3>", self.show_group_map)
         self.groupList.grid(row=11, column=1, sticky="ns")
         tkinter.Button(frame, text="Add", command=self.add_group, width=6).grid(row=12, column=0, columnspan=2, sticky="nsew")
         # tkinter.Button(self.detailsPanel, text="Delete", command=self.delete_class,width = 6).grid(row=13, column=0, columnspan=2)
@@ -442,8 +442,10 @@ class MainWindow(tkinter.Tk):
         self.overviewDetails = projectmanager.get_overview_map()
         self.baseMapImage = self.overviewDetails[0]
         print("base map is",self.baseMapImage)
-        #self.overviewPanel.delete(tkinter.ALL)
-        #self.overviewPanel.create_image(5, 5, image=self.overviewDetails[0], anchor=tkinter.NW, tags=("map",))
+        print("type of map is", type(self.baseMapImage))
+        self.overviewPanel.delete(tkinter.ALL)
+        self.photoImage = ImageTk.PhotoImage(self.baseMapImage)
+        self.overviewPanel.create_image(5, 5, image=self.photoImage, anchor=tkinter.NW, tags=("map",))
         self.overviewPanel.configure(width=800, height=800)
         self.update_groups_tree()
         self.display_group(None)
@@ -548,10 +550,17 @@ class MainWindow(tkinter.Tk):
         print(self.groupsTree.item(curItem))
         groupName = self.groupsTree.item(curItem)["values"][0]
         print("groupname is",groupName)
-        result = projectmanager.download_group_map(groupName)
-        if result != False:
-            img2 = Image.open(groupName + ".png")
-            #img2.show()
+        if groupName == "ALL":
+            self.load_overview_map()
+            return
+        self.baseMapImage = projectmanager.download_group_map(groupName)
+        print("type of map is",type(self.baseMapImage))
+        self.photoImage = ImageTk.PhotoImage(self.baseMapImage.resize((800, 800), Image.ANTIALIAS))
+        #self.baseMapImage.show()
+        self.overviewPanel.delete(tkinter.ALL)
+        self.overviewPanel.create_image(5, 5, image=self.photoImage, anchor=tkinter.NW,tags=("map",))
+
+
 
     def update_groups_tree(self):
         self.groupsTree.delete(*self.groupsTree.get_children())
