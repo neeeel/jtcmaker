@@ -22,7 +22,7 @@ class MainWindow(tkinter.Tk):
         self.tracsisGrey = "#%02x%02x%02x" % (99, 102, 106)
         super(MainWindow, self).__init__()
         self.state("zoomed")
-        #self.mapPanel = mapViewer.MapViewer(self,width=800,height=800,surveyType="J")
+
         self.siteDisplayFrame = tkinter.Frame(self,bg="white")
         self.mapPanelImage = None
         self.overviewImage = None
@@ -44,7 +44,7 @@ class MainWindow(tkinter.Tk):
         menu.add_command(label="Load New Project", command=self.load_project)
         menu.add_command(label="Load Previous Project", command=self.load_project_from_pickle)
         menu.add_command(label="Save Current Project", command=self.save_project_to_pickle)
-        #menu.add_command(label="Occupancy Mismatch", command=self.get_occupancy_mismatch)
+
         self.menubar.add_cascade(label="File", menu=menu)
         self.config(menu=self.menubar)
 
@@ -84,7 +84,6 @@ class MainWindow(tkinter.Tk):
             c = tkinter.Checkbutton(frame,text=surveyType,variable=var)
             c.grid(row=0,column=col)
             c.var = var
-            #c.var.set(1)
         frame.grid(row=5,column=0)
         frame = tkinter.Frame(self)
         tkinter.Button(frame, text="<", command=lambda:self.decrement_map(None),width = 4,height = 2).grid(row=0, column=0,padx = 5,rowspan=2)
@@ -95,9 +94,6 @@ class MainWindow(tkinter.Tk):
         tkinter.Radiobutton(frame,text = "regular",variable=self.imageTypeVar,value=0,command=self.change_site_image_type).grid(row=0,column=4)
         tkinter.Radiobutton(frame,text = "Satellite",variable=self.imageTypeVar,value=1,command=self.change_site_image_type).grid(row=1,column=4)
         frame.grid(row = 4,column=1)
-
-
-
 
         tkinter.Label(self, text="Overview", font=f, fg=self.tracsisBlue,bg="light blue",relief=tkinter.GROOVE,borderwidth=2).grid(row=0, column=2,sticky="nsew")
         self.overviewPanel = tkinter.Canvas(self,bg="white",relief=tkinter.RAISED,borderwidth=1)
@@ -111,24 +107,12 @@ class MainWindow(tkinter.Tk):
         self.dragInfo = {}
         self.dragInfo["Widget"] = None
         self.siteDisplayFrame.grid(row=1, column=1, rowspan=3)
-        #self.mapPanel.grid(row=1, column=1, rowspan=3)
-        # self.mapPanel.bind("<Double-Button-1>",self.add_arm_icon)
-
         self.controlDown = False
-
         self.bind("<Left>", self.decrement_map)
         self.bind("<Right>", self.increment_map)
 
         self.activity = None
-        # self.load_map_panel_map(self.currentSite["Site Name"])
-        # self.load_overview_map()
-        # self.currentTag = ""
-        # self.dragInfo = {}
-        for child in self.winfo_children():
-            print(type(child))
-            for c in child.winfo_children():
-                print("-------------",type(c))
-        return
+
 
 
 
@@ -180,12 +164,17 @@ class MainWindow(tkinter.Tk):
             row=4, column=0, sticky="nsew")
         e = tkinter.Entry(frame, textvariable=self.surveyDateVar, font=f2)
         e.grid(row=2, column=1, sticky="nsew")
+        e.bind("<Return>",self.date_changed)
+        e.bind("<Tab>", self.date_changed)
 
-        self.timesTextBox = tkinter.Text(frame, height=3, width=20, wrap=tkinter.WORD, font=f2)
-        self.timesTextBox.grid(row=3, column=1, sticky="nsew")
-        self.periodBox = ttk.Combobox(frame, width=16)
-        self.periodBox["values"] = ["5", "15", "30", "60"]
-        self.periodBox.grid(row=4, column=1, sticky="nsew")
+        t = tkinter.Text(frame, height=3, width=20, wrap=tkinter.WORD, font=f2)
+        t.grid(row=3, column=1, sticky="nsew")
+        t.bind("<Return>",self.time_changed)
+        t.bind("<Tab>", self.time_changed)
+        p = ttk.Combobox(frame, width=16)
+        p["values"] = ["5", "15", "30", "60"]
+        p.grid(row=4, column=1, sticky="nsew")
+        p.bind("<<ComboboxSelected>>",self.period_changed)
 
         tkinter.Label(frame, text="Classes", font=f, fg=self.tracsisBlue, relief=tkinter.GROOVE, bg="light blue").grid(
             row=5, column=0, columnspan=2, sticky="nsew")
@@ -264,13 +253,19 @@ class MainWindow(tkinter.Tk):
             row=4, column=0, sticky="nsew")
         e = tkinter.Entry(frame, textvariable=self.surveyDateVar, font=f2)
         e.grid(row=2, column=1, sticky="nsew")
+        e.bind("<Return>", self.date_changed)
+        e.bind("<Tab>", self.date_changed)
 
-        self.timesTextBox = tkinter.Text(frame, height=3, width=20, wrap=tkinter.WORD, font=f2)
-        self.timesTextBox.grid(row=3, column=1, sticky="nsew")
+        t = tkinter.Text(frame, height=3, width=20, wrap=tkinter.WORD, font=f2)
+        t.grid(row=3, column=1, sticky="nsew")
+        t.bind("<Return>", self.time_changed)
+        t.bind("<Tab>", self.time_changed)
 
-        self.periodBox = ttk.Combobox(frame, width=16)
-        self.periodBox["values"] = ["5", "15", "30", "60"]
-        self.periodBox.grid(row=4, column=1, sticky="nsew")
+        p = ttk.Combobox(frame, width=16)
+        p["values"] = ["5", "15", "30", "60"]
+        p.grid(row=4, column=1, sticky="nsew")
+        p.bind("<<ComboboxSelected>>", self.period_changed)
+
 
         tkinter.Label(frame, text="Classes", font=f, fg=self.tracsisBlue, relief=tkinter.GROOVE, bg="light blue").grid(
             row=5, column=0, columnspan=2, sticky="nsew")
@@ -443,6 +438,8 @@ class MainWindow(tkinter.Tk):
         self.baseMapImage = self.overviewDetails[0]
         print("base map is",self.baseMapImage)
         print("type of map is", type(self.baseMapImage))
+        if self.baseMapImage is None:
+            return
         self.overviewPanel.delete(tkinter.ALL)
         self.photoImage = ImageTk.PhotoImage(self.baseMapImage)
         self.overviewPanel.create_image(5, 5, image=self.photoImage, anchor=tkinter.NW, tags=("map",))
@@ -559,8 +556,6 @@ class MainWindow(tkinter.Tk):
         #self.baseMapImage.show()
         self.overviewPanel.delete(tkinter.ALL)
         self.overviewPanel.create_image(5, 5, image=self.photoImage, anchor=tkinter.NW,tags=("map",))
-
-
 
     def update_groups_tree(self):
         self.groupsTree.delete(*self.groupsTree.get_children())
@@ -700,19 +695,55 @@ class MainWindow(tkinter.Tk):
             widgetFocus =(tabIndex,index)
         self.display_classes(widgetFocus=widgetFocus)
 
-    ########################################################################################################################
-    ###
-    ### methods to deal with zooming or dragging the overview map
-    ###
-    #######################################################################################################################
-
-
 
     ########################################################################################################################
     ###
-    ### methods to deal with the site aps,importing, exporting projects etc
+    ### methods to deal with the site and project details,importing, exporting projects etc
     ###
     ########################################################################################################################
+
+    def period_changed(self,event):
+        print("current value is",event.widget.get())
+        tabIndex = self.surveyTabs.index(self.surveyTabs.select())
+        projectmanager.change_period(event.widget.get(),tabIndex)
+
+    def date_changed(self,event):
+        tabIndex = self.surveyTabs.index(self.surveyTabs.select())
+        survey = ["J","Q","P"][tabIndex]
+        text = event.widget.get()
+        try:
+            d = datetime.datetime.strptime(text,"%d/%m/%Y")
+        except Exception as e:
+            messagebox.showinfo(message="Incorrect date format, must be dd/mm/yyyy")
+            surveyDets = projectmanager.get_survey_details(survey)
+            event.widget.delete(0, "end")
+            event.widget.insert(0, datetime.datetime.strftime(surveyDets[0], "%d/%m/%Y"))
+            return
+        projectmanager.change_survey_date(d,tabIndex)
+
+    def time_changed(self,event):
+        tabIndex = self.surveyTabs.index(self.surveyTabs.select())
+        survey = ["J", "Q", "P"][tabIndex]
+        text = event.widget.get("1.0",tkinter.END).strip()
+        periods = text.split(",")
+        for p in periods:
+            print("checking period",p)
+            times = p.split("-")
+            try:
+                print("checking times",times)
+                start = times[0]
+                end = times[1]
+                for t in [start,end]:
+                    t = datetime.datetime.strptime(t,"%H:%M")
+            except Exception as e:
+                messagebox.showinfo(message="Incorrect time format, must be hh:mm-hh:mm")
+                surveyDets = projectmanager.get_survey_details(survey)
+                event.widget.delete('1.0', tkinter.END)
+                event.widget.insert(tkinter.END, surveyDets[1])
+                return
+        projectmanager.change_times(text, tabIndex)
+        event.widget.delete('1.0', tkinter.END)
+        event.widget.insert(tkinter.END, text)
 
     def change_site_image_type(self):
         map = self.nametowidget(self.mapTabs.select()).winfo_children()[0]
@@ -720,7 +751,7 @@ class MainWindow(tkinter.Tk):
         projectmanager.change_site_image_type(self.imageTypeVar.get(),self.currentSite,map.surveyType)
         print("map widget is", map, type(map))
         print(map.surveyType)
-        map.clear_all()
+        #map.clear_all()
         map.display_site()
 
     def load_project(self):
@@ -761,13 +792,11 @@ class MainWindow(tkinter.Tk):
         print("project details are",projectDetails)
         self.jobNameVar.set(projectDetails[0])
         self.jobNumVar.set(projectDetails[1])
-        for i,survey in enumerate(["J"]):
+        for i,survey in enumerate(["J","Q"]):
             print("--" * 100)
             frame = self.surveyTabs.tabs()[i]
             frame = self.nametowidget(frame)  #.winfo_children()[14]
             children = frame.winfo_children()
-            for child in children:
-                print("---",type(child))
             surveyDets = projectmanager.get_survey_details(survey)
             children[8].delete(0,"end")
             children[8].insert(0,datetime.datetime.strftime(surveyDets[0],"%d/%m/%Y"))
@@ -794,11 +823,20 @@ class MainWindow(tkinter.Tk):
             map.set_site(self.currentSite)
             map.grid(row=0,column=0)
             map.display_site()
+            if "J" in self.currentSite["surveys"]:
+                self.imageTypeVar.set(projectmanager.get_image_type(self.currentSite,"J"))
+            elif "Q" in self.currentSite["surveys"]:
+                self.imageTypeVar.set(projectmanager.get_image_type(self.currentSite, "Q"))
+            elif "P" in self.currentSite["surveys"]:
+                self.imageTypeVar.set(projectmanager.get_image_type(self.currentSite, "P"))
+            self.mapTabs.select(0)
 
     def survey_type_changed(self,event):
         nb = event.widget
         print("type of nb is",type(nb))
-        print("selected tab is",nb.index(nb.select()))
+        map = self.nametowidget(self.mapTabs.select()).winfo_children()[0]
+        print("surveytype is", map.surveyType)
+        self.imageTypeVar.set(projectmanager.get_image_type(self.currentSite, map.surveyType))
 
     def change_site_zoom(self,value):
         map = self.nametowidget(self.mapTabs.select()).winfo_children()[0]

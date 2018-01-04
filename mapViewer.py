@@ -283,6 +283,11 @@ class MapViewer(tkinter.Canvas):
                 self.currentSelectedArm = tags[0]
                 print("tags of closest widget are",tags,allwidgetsWithTag)
                 if "map" in tags:
+                    self.activity = "map"
+                    self.bind("<B1-Motion>", self.on_movement)
+                    self.bind("<ButtonRelease>", self.on_release_movement)
+                    self.widgetCoords = (x,y)
+                    self.totalMovement = [0,0]
                     return
                 if len(tags) > 1 and "line" in tags[1]:
                     print("clicked a line")
@@ -368,8 +373,13 @@ class MapViewer(tkinter.Canvas):
         newY = winY - self.widgetCoords[1]
         #print("activity is",self.activity)
         if self.activity == "map":
+            print(winX,winY,newX,newY)
+            self.totalMovement[0]+=newX
+            self.totalMovement[1] += newY
+
             for child in self.find_all():
-                self.move(child, newX, newY)
+                self.move(child,newX,newY)
+
         elif self.activity == "moving window":
             #print("moving wuindow")
             for child in self.find_withtag(self.currentSelectedArm):
@@ -410,6 +420,9 @@ class MapViewer(tkinter.Canvas):
                 tags = self.gettags(widget)
                 if "window" in tags:
                     self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["entry widget coords"] = self.coords(widget)
+        if self.activity == "map":
+            print("dropped map at",event.x,event.y,"total movement was ",self.totalMovement)
+            projectmanager.change_site_centre_point(self.site,self.totalMovement[0],self.totalMovement[1],self.surveyType)
         self.activity = None
         self.unbind("<B1-Motion>")
         self.unbind("<ButtonRelease>")

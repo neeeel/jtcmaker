@@ -126,6 +126,23 @@ def get_groups():
 ###
 ####################################################################################################
 
+def change_period(val,surveyIndex):
+    surveyType = ["J", "Q", "P"][surveyIndex]
+    project["survey details"][surveyType]["period"] = val
+    print("survey details are",project["survey details"])
+
+def change_survey_date(d,surveyIndex):
+    surveyType = ["J", "Q", "P"][surveyIndex]
+    project["survey details"][surveyType]["date"] = d
+
+def change_times(t,surveyIndex):
+    print("received",t)
+    surveyType = ["J", "Q", "P"][surveyIndex]
+    project["survey details"][surveyType]["times"] = t
+    print("times for ",surveyType,"are",project["survey details"][surveyType]["times"])
+
+def get_survey_details(surveyType):
+    return [project["survey details"][surveyType]["date"],project["survey details"][surveyType]["times"],project["survey details"][surveyType]["period"]]
 
 ####################################################################################################
 ###
@@ -133,6 +150,8 @@ def get_groups():
 ###
 ####################################################################################################
 
+def get_image_type(site,surveyType):
+    return ["roadmap","satellite"].index(site["surveys"][surveyType]["imageType"])
 
 def get_site_by_order(index):
     for _,site in project["sites"].items():
@@ -162,23 +181,21 @@ def change_site_zoom(site,value,surveyType):
     site["surveys"][surveyType]["image"] = map.resize((800, 800), Image.ANTIALIAS)
     site["surveys"][surveyType]["Arms"] = {}
 
-def change_site_centre_point(site,x,y):
+def change_site_centre_point(site,x,y,surveyType):
     ###
     ### x,y are the deltas that the map has changed by
     ###
     print("changing site centre point,movement was",x,y)
-    currentCentre = sites[site]["latlon"]
-    zoom = sites[site]["zoom"]
+    currentCentre = site["surveys"][surveyType]["latlon"]
+    zoom = site["surveys"][surveyType]["zoom"]
     newCentre = mapmanager.get_lat_lon_from_x_y(currentCentre,(640-(x*800/1280)),(640-(y*800/1280)),zoom,size=1280)
     print("new centre is ",newCentre)
-    site["latlon"] = newCentre
+    
+    site["surveys"][surveyType]["latlon"] = newCentre
     download_overview_map()
-    map = mapmanager.load_high_def_map_with_labels(sites[site]["latlon"][0], sites[site]["latlon"][1], sites[site]["zoom"],imageType =sites[site]["imageType"])
-    map.save(str(sites[site]["Site Name"]) + ".png")
-    site["image"] = map.resize((800, 800), Image.ANTIALIAS)
-    armlist = [k for k, item in sites[site]["Arms"].items()]
-    for arm in armlist:
-        delete_arm_from_site(site["Site Name"],arm)
+    map = mapmanager.load_high_def_map_with_labels(site["surveys"][surveyType]["latlon"][0], site["surveys"][surveyType]["latlon"][1], site["surveys"][surveyType]["zoom"],imageType =site["surveys"][surveyType]["imageType"])
+    site["surveys"][surveyType]["image"] = map.resize((800, 800), Image.ANTIALIAS)
+    site["surveys"][surveyType]["Arms"] = {}
 
 def change_site_group(site,group):
     sites[site]["group"] = group
@@ -196,9 +213,11 @@ def change_site_group(site,group):
 
 def get_overview_map():
     try:
+        print("project is",project["survey details"])
         img = project["survey details"]["J"]["overview image"]
         #img = img.resize((800, 800), Image.ANTIALIAS)
-        coordsList = [(site["Site Name"],mapmanager.get_coords(project["survey details"]["J"]["overview centre"],site["surveys"]["J"]["latlon"],project["survey details"]["J"]["overview zoom"],size=1280)) for _,site in project["sites"].items()]
+        coordsList = get_all_site_details()
+        #coordsList = [(site["Site Name"],mapmanager.get_coords(project["survey details"]["J"]["overview centre"],site["surveys"]["J"]["latlon"],project["survey details"]["J"]["overview zoom"],size=1280)) for _,site in project["sites"].items()]
         print("Coord list is",coordsList)
         return [img,coordsList]
     except Exception as e:
@@ -211,8 +230,7 @@ def get_nearest_site_on_overview_map(x,y):
 def get_project_details():
     return [project["jobName"],project["jobNumber"]]
 
-def get_survey_details(surveyType):
-    return [project["survey details"][surveyType]["date"],project["survey details"][surveyType]["times"],project["survey details"][surveyType]["period"]]
+
 
 def format_date(d):
     surveyDate = None
@@ -316,15 +334,21 @@ def load_project():
     import_site_details_from_excel()
     if siteDetails is None:
         return None
-    download_overview_map()
-    for _,site in project["sites"].items():
-        site["coords"] = mapmanager.get_coords(overview_map_details[1],site["surveys"]["J"]["latlon"],overview_map_details[2],size=1280)
+    points = get_all_site_coords()
+    if points != []:
+        download_overview_map()
+        project["groups"] = {}
+        project["groups"]["ALL"] = {}
+        project["groups"]["ALL"]["siteList"] = []
+        project["groups"]["ALL"]["coords"] = []
+        for _,site in project["sites"].items():
+            if "J" in site["surveys"]:
+                site["coords"] = mapmanager.get_coords(overview_map_details[1],site["surveys"]["J"]["latlon"],overview_map_details[2],size=1280)
+                project["groups"]["ALL"]["siteList"].append(site["Site Name"])
+                project["groups"]["ALL"]["coords"].append(site["coords"])
+        project["groups"]["ALL"]["image"] = None
     download_all_individual_site_maps()
-    project["groups"] = {}
-    project["groups"]["ALL"] = {}
-    project["groups"]["ALL"]["siteList"] = [site["Site Name"] for _,site in project["sites"].items()]
-    project["groups"]["ALL"]["coords"] = [site["coords"] for _,site in project["sites"].items()]
-    project["groups"]["ALL"]["image"] = None
+
     with open("test" + ".pkl", "wb") as f:
         pickle.dump(project, f)
     with open("test" + ".pkl", "rb") as f:
@@ -420,7 +444,7 @@ def export_JTC_to_excel():
     file = filedialog.asksaveasfilename()
     if file == "" or file is None:
         return
-    wb = openpyxl.load_workbook("Flow Automation Template v2.0.xlsm",keep_vba=True)
+    wb = openpyxl.load_workbook("JTC Template.xlsm",keep_vba=True)
 
     sht = wb.get_sheet_by_name("Maps")
 
@@ -516,16 +540,11 @@ def export_JTC_to_excel():
                     print("outputting", label + "," + str(angle) + "," + arm["road name"] + "," + str(x*excelMapWidth/800) + "," + str(y*excelMapHeight/800))
                     col+=1
                 row+=1
-            folder = os.path.dirname(os.path.abspath(__file__))
-            #folder = os.path.join(folder, "Runs\\")
-            siteImg.save(folder + "/" + key + " with arm labels" + ".png")
-            img2 = Image.open(key + " with arm labels.png")
-            img2 = img2.resize((500, 500), Image.ANTIALIAS)
-            excelMapImage = openpyxl.drawing.image.Image(img2)
-            sht = wb.get_sheet_by_name("Maps")
-            sht.add_image(excelMapImage, "B" + str(2 + count))
-
-            count+=1
+                img2 = siteImg.resize((800, 800), Image.ANTIALIAS)
+                excelMapImage = openpyxl.drawing.image.Image(img2)
+                sht = wb.get_sheet_by_name("Maps")
+                sht.add_image(excelMapImage, "B" + str(2 + count))
+                count+=1
 
     count = 0
     ###
@@ -617,6 +636,8 @@ def export_Q_to_excel():
     excelImageSmall = openpyxl.drawing.image.Image(imgSmall)
     sht.add_image(excelImageSmall, "AA1")
 
+
+
     img = Image.open("Tracsis Icon.png")
     imgSmall = img #.resize((25, 25), Image.ANTIALIAS)
     excelImageSmall = openpyxl.drawing.image.Image(imgSmall)
@@ -702,16 +723,12 @@ def export_Q_to_excel():
                     print("outputting", label + "," + str(arm["lanes"]) + "," + arm["road name"] + "," + coords)
                     col+=1
                 row+=1
-            folder = os.path.dirname(os.path.abspath(__file__))
-            #folder = os.path.join(folder, "Runs\\")
-            siteImg.save(folder + "/" + key + " with arm labels" + ".png")
-            img2 = Image.open(key + " with arm labels.png")
-            img2 = img2.resize((500, 500), Image.ANTIALIAS)
-            excelMapImage = openpyxl.drawing.image.Image(img2)
-            sht = wb.get_sheet_by_name("Maps")
-            sht.add_image(excelMapImage, "B" + str(2 + count))
 
-            count+=1
+                img2 = siteImg.resize((800, 800), Image.ANTIALIAS)
+                excelMapImage = openpyxl.drawing.image.Image(img2)
+                sht = wb.get_sheet_by_name("Maps")
+                sht.add_image(excelMapImage, "B" + str(2 + count))
+                count+=1
 
     count = 0
     print("saving")
@@ -731,9 +748,12 @@ def get_all_site_coords():
     return coords
 
 def get_all_site_details():
-    print("in get site details",sites)#
-    print([site["Site Name"] + site["latlon"] for k, site in sites.items()])
-    return [site["Site Name"] + site["latlon"] for k, site in sites.items()]
+    coords = []
+    for _, site in project["sites"].items():
+        if "J" in site["surveys"]:
+            coords.append([site["Site Name"], mapmanager.get_coords(project["survey details"]["J"]["overview centre"],site["surveys"]["J"]["latlon"],project["survey details"]["J"]["overview zoom"],size=1280)])
+    return coords
+
 
 def download_all_individual_site_maps():
     for siteName,site in project["sites"].items():
@@ -749,6 +769,8 @@ def download_overview_map():
     global overview_map_details,project
     points = get_all_site_coords()
     print("in overview map points are",points)
+    if points == []:
+        return
     overview_map_details = mapmanager.load_overview_map_without_street_labels(points)
     overview_map_details[0].save("overview.png")
     #overview_map_details[0].show()
