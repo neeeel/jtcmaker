@@ -820,6 +820,7 @@ class MainWindow(tkinter.Tk):
             frame = tkinter.Frame(self.siteDisplayFrame)
             self.mapTabs.add(frame, text=surveyTypes[surveyType])
             map = mapViewer.MapViewer(frame,800,800,surveyType=surveyType)
+            map.set_callback_function("load overview map",self.load_overview_map)
             map.set_site(self.currentSite)
             map.grid(row=0,column=0)
             map.display_site()

@@ -188,14 +188,19 @@ def change_site_centre_point(site,x,y,surveyType):
     print("changing site centre point,movement was",x,y)
     currentCentre = site["surveys"][surveyType]["latlon"]
     zoom = site["surveys"][surveyType]["zoom"]
-    newCentre = mapmanager.get_lat_lon_from_x_y(currentCentre,(640-(x*800/1280)),(640-(y*800/1280)),zoom,size=1280)
+    newCentre = mapmanager.get_lat_lon_from_x_y(currentCentre,(640-(x*640/800)),(640-(y*640/800)),zoom,size=1280)
     print("new centre is ",newCentre)
-    
+
     site["surveys"][surveyType]["latlon"] = newCentre
-    download_overview_map()
-    map = mapmanager.load_high_def_map_with_labels(site["surveys"][surveyType]["latlon"][0], site["surveys"][surveyType]["latlon"][1], site["surveys"][surveyType]["zoom"],imageType =site["surveys"][surveyType]["imageType"])
+    map = mapmanager.load_high_def_map_with_labels(site["surveys"][surveyType]["latlon"][0],
+                                                   site["surveys"][surveyType]["latlon"][1],
+                                                   site["surveys"][surveyType]["zoom"],
+                                                   imageType=site["surveys"][surveyType]["imageType"])
     site["surveys"][surveyType]["image"] = map.resize((800, 800), Image.ANTIALIAS)
     site["surveys"][surveyType]["Arms"] = {}
+    if surveyType == "J":
+        download_overview_map()
+
 
 def change_site_group(site,group):
     sites[site]["group"] = group
@@ -229,8 +234,6 @@ def get_nearest_site_on_overview_map(x,y):
 
 def get_project_details():
     return [project["jobName"],project["jobNumber"]]
-
-
 
 def format_date(d):
     surveyDate = None
@@ -704,7 +707,7 @@ def export_Q_to_excel():
                 sht.cell(row=row , column=2).value = str(site["surveys"]["Q"]["zoom"])
                 sht.cell(row=row , column=3).value = str(site["surveys"]["Q"]["latlon"][0]) + "," + str(site["surveys"]["Q"]["latlon"][1])
                 for label,arm in sorted(site["surveys"]["Q"]["Arms"].items()):
-                    angle = arm["orientation"]
+                    angle = arm["last line orientation"]
                     coords = [(c-5)*excelMapWidth/800 for c in arm["line vertices"]]
                     coords = ",".join(list(map(str,coords)))
                     x,y = arm["line vertices"][:2]
@@ -717,7 +720,7 @@ def export_Q_to_excel():
                     if angle >= 360:
                         angle-=360
                     print(label,"coords are",coords)
-                    sht.cell(row=row, column=col).value = label + "," + str(arm["lanes"]) + "," + arm["road name"] + "," + coords    ### convert coords to fit a 500x500 map
+                    sht.cell(row=row, column=col).value = label + "," + str(arm["lanes"]) + "," + arm["road name"] + "," + str(angle) + "," + coords    ### convert coords to fit a 500x500 map
                     #sht.cell(row=row , column=col+1).value = angle
                     #sht.cell(row=row, column=col + 2).value = arm["road"]
                     print("outputting", label + "," + str(arm["lanes"]) + "," + arm["road name"] + "," + coords)
@@ -753,7 +756,6 @@ def get_all_site_details():
         if "J" in site["surveys"]:
             coords.append([site["Site Name"], mapmanager.get_coords(project["survey details"]["J"]["overview centre"],site["surveys"]["J"]["latlon"],project["survey details"]["J"]["overview zoom"],size=1280)])
     return coords
-
 
 def download_all_individual_site_maps():
     for siteName,site in project["sites"].items():

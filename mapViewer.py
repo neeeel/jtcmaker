@@ -168,6 +168,54 @@ class MapViewer(tkinter.Canvas):
         self.create_oval(x-self.armLabelRadius,y-self.armLabelRadius,x+self.armLabelRadius,y+self.armLabelRadius,width = 3,outline="red",tags=(str(armName),"circle"))
         self.create_text((x,y),text=armName,font=f,tags=(str(armName),"textlabel"))
 
+    def calculate_orientation(self,x1,y1,x2,y2):
+        centre_X = x1  # + 15
+        centre_Y = y1  # + 15
+        dx = x2 - centre_X
+        dy = y2 - centre_Y
+        if dy != 0:
+            theta = np.arctan(dx / dy)
+            offsetX = self.armLabelRadius * np.sin(theta)
+        else:
+            theta = 1
+            if dx != 0:
+                offsetX = (dx / abs(dx)) * 15
+            else:
+                offsetX = 15
+        if dx != 0:
+            if dy != 0:
+                theta = np.arctan(dx / dy)
+                offsetY = offsetX / np.tan(theta)
+            else:
+                offsetY = 0
+        else:
+            offsetY = 15
+        if y2 >= centre_Y:
+            newY = centre_Y + offsetY
+            newX = centre_X + offsetX
+        else:
+            newY = centre_Y - offsetY
+            newX = centre_X - offsetX
+        # coords[0] = newX
+        # coords[1]=newY
+        if theta == 1 and dx < 0:
+            orientation = 90
+        elif theta == 1 and dx > 0:
+            orientation = 270
+        elif theta == 0.0 and dy > 0:
+            orientation = 0
+        elif theta == -0.0 and dy < 0:
+            orientation = 180
+        elif dx < 0 and dy > 0:
+            orientation = -np.degrees(theta)
+        elif dx < 0 and dy < 0:
+            orientation = 90 + (90 - np.degrees(theta))
+        elif dx > 0 and dy < 0:
+            orientation = 180 - np.degrees(theta)
+        elif dx > 0 and dy > 0:
+            orientation = 270 + (90 - np.degrees(theta))
+        return orientation
+
     def draw_arm_line(self,armName,coords):
         coords = list(coords)
         print("coords are",coords)
@@ -224,6 +272,7 @@ class MapViewer(tkinter.Canvas):
             #print("drawing line segment",index,coords[index:index+4])
             self.create_line(coords[index:index+4], fill="red", width=3, tags=(armName, "line_" + str(index//2)))
         if self.surveyType == "Q":
+            self.site["surveys"][self.surveyType]["Arms"][armName]["last line orientation"] = self.calculate_orientation(coords[-4],coords[-3],coords[-2],coords[-1])
             lineLength = length_of_line_in_pixels(coords)
             length = round(self.mapWidthInPixels * lineLength * self.metresPerPixel / self.width, 2)
             if not self.site["surveys"][self.surveyType]["Arms"][armName]["entry widget"] is None:
@@ -267,6 +316,7 @@ class MapViewer(tkinter.Canvas):
                 self.currentArmLabel = chr(ord(self.currentArmLabel) + 1)
                 self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm] = arm
                 self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["entry widget"] = None
+                self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["last line orientation"] = 0
                 self.display_site()
                 self.bind("<Motion>", self.animate_line)
                 #self.pick_up_line()
@@ -413,7 +463,7 @@ class MapViewer(tkinter.Canvas):
                         self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["entry widget coords"] = self.coords(widget)
 
             self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["line vertices"] = linecoords
-            self.display_site()
+
         if self.activity == "moving window":
             allwidgetsWithTag = self.find_withtag(self.currentSelectedArm)
             for widget in allwidgetsWithTag:
@@ -423,9 +473,15 @@ class MapViewer(tkinter.Canvas):
         if self.activity == "map":
             print("dropped map at",event.x,event.y,"total movement was ",self.totalMovement)
             projectmanager.change_site_centre_point(self.site,self.totalMovement[0],self.totalMovement[1],self.surveyType)
+            self.loadOverviewMapFunction()
         self.activity = None
         self.unbind("<B1-Motion>")
         self.unbind("<ButtonRelease>")
+        self.display_site()
+
+    def set_callback_function(self,text,fun):
+        if text == "load overview map":
+            self.loadOverviewMapFunction = fun
 
 def metres_per_pixel(lat, zoom):
     return 156543.03 * math.cos(math.radians(lat)) / 2 ** (zoom)
