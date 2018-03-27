@@ -64,6 +64,8 @@ def get_centre_of_points(points,zoom):
 
 def calculate_zoom_value(points):
     GLOBE_WIDTH = 256
+    if len(points) == 1:
+        return 19
     west = min(points, key=lambda item: item[1])[1]
     east = max(points, key=lambda item: item[1])[1]
     north = max(points, key=lambda item: item[0])[0]

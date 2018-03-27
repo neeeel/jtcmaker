@@ -10,6 +10,8 @@ import datetime
 from tkinter import messagebox
 import time
 import mapViewer
+import subprocess
+import os
 
 baseClasses = [["Car","Car/Taxi",1],["LGV","Light Goods Vehicle",1],["OGV1","Other Goods Vehicle 1",1.5],["OGV2","Other Goods Vehicle 2",2.3],["PSV","Omnibus",2],["MC","Motorcycle",0.4],["PC","Pedal Cycle",0.2]]
 surveyTypes = {"J":"JTC","Q":"Queue","P":"Ped"}
@@ -51,6 +53,7 @@ class MainWindow(tkinter.Tk):
         self.jobNameVar = tkinter.StringVar()
         self.jobNumVar = tkinter.StringVar()
         self.mapPanelHasFocus = False
+        self.currentSite = None
 
         f = tkinter.font.Font(family='Helvetica', size=16, weight=tkinter.font.BOLD)
         f2 = tkinter.font.Font(family='Helvetica', size=8)
@@ -93,6 +96,7 @@ class MainWindow(tkinter.Tk):
         self.imageTypeVar = tkinter.IntVar()
         tkinter.Radiobutton(frame,text = "regular",variable=self.imageTypeVar,value=0,command=self.change_site_image_type).grid(row=0,column=4)
         tkinter.Radiobutton(frame,text = "Satellite",variable=self.imageTypeVar,value=1,command=self.change_site_image_type).grid(row=1,column=4)
+        tkinter.Button(frame,text="View Site on Google",height = 2,command=self.view_google_map).grid(row=0,column=5,rowspan=2,padx = (10,0))
         frame.grid(row = 4,column=1)
 
         tkinter.Label(self, text="Overview", font=f, fg=self.tracsisBlue,bg="light blue",relief=tkinter.GROOVE,borderwidth=2).grid(row=0, column=2,sticky="nsew")
@@ -108,8 +112,8 @@ class MainWindow(tkinter.Tk):
         self.dragInfo["Widget"] = None
         self.siteDisplayFrame.grid(row=1, column=1, rowspan=3)
         self.controlDown = False
-        self.bind("<Left>", self.decrement_map)
-        self.bind("<Right>", self.increment_map)
+        #self.bind("<Left>", self.decrement_map)
+        #self.bind("<Right>", self.increment_map)
 
         self.activity = None
 
@@ -171,20 +175,21 @@ class MainWindow(tkinter.Tk):
         t.grid(row=3, column=1, sticky="nsew")
         t.bind("<Return>",self.time_changed)
         t.bind("<Tab>", self.time_changed)
+        #t.bind("<FocusOut>", self.time_changed)
         p = ttk.Combobox(frame, width=16)
         p["values"] = ["5", "15", "30", "60"]
         p.grid(row=4, column=1, sticky="nsew")
         p.bind("<<ComboboxSelected>>",self.period_changed)
 
         tkinter.Label(frame, text="Classes", font=f, fg=self.tracsisBlue, relief=tkinter.GROOVE, bg="light blue").grid(
-            row=5, column=0, columnspan=2, sticky="nsew")
+            row=5, column=0, columnspan=4, sticky="nsew")
         cols = ["Class", "PCU"]
 
         for i,col in enumerate(cols):
             tkinter.Label(frame,text = col).grid(row=6,column=i,sticky="nsew")
         classesframe = tkinter.Frame(frame, bg="blue")
         classesframe.grid(row=7, column=0, columnspan=2, sticky="nsew")
-        tkinter.Button(frame, text="Add", command=self.add_class, width=6).grid(row=8, column=0, sticky="nsew",columnspan=2)
+        tkinter.Button(frame, text="Add", command=self.add_class, width=7).grid(row=8, column=0, sticky="nsew",columnspan=2)
         self.update()
         ####
         ### Groups
@@ -195,6 +200,15 @@ class MainWindow(tkinter.Tk):
         tkinter.Label(frame, text="Groups", font=f, fg=self.tracsisBlue, relief=tkinter.GROOVE, bg="light blue").grid(
             row=9, column=0, columnspan=4, sticky="nsew")
         cols = ["Group"]
+        tkinter.Label(frame, text="Full Site List", font=f, fg=self.tracsisBlue, relief=tkinter.GROOVE,
+                      bg="light blue").grid(
+            row=13, column=0, columnspan=4, sticky="nsew")
+        l =tkinter.Listbox(frame)
+        l.grid(row=14, column=0, columnspan=4, sticky="nsew")
+        l.bind("<<ListboxSelect>>", self.site_selected)
+        # tkinter.Button(self.detailsPanel, text="Delete", command=self.delete_class,width = 6).grid(row=13, column=0, columnspan=2)
+
+
         frame = tkinter.Frame(frame, bg="white")
         frame.grid(row=10, column=0, columnspan=4, sticky="nsew")
         self.groupsTree = ttk.Treeview(frame, columns=cols, height=7, show="headings", selectmode="browse")
@@ -209,12 +223,12 @@ class MainWindow(tkinter.Tk):
         self.groupsTree.grid(row=11, column=0)
         # self.groupsTree.insert("","end",values= ["Group 1"],tags =("tree", "odd") )
 
-        self.groupList = tkinter.Listbox(frame)
+        self.groupList = tkinter.Listbox(frame,width = 17)
         self.groupList.bind("<Double-Button-1>", self.delete_site_from_group)
         #self.groupList.bind("<Button-3>", self.show_group_map)
         self.groupList.grid(row=11, column=1, sticky="ns")
         tkinter.Button(frame, text="Add", command=self.add_group, width=6).grid(row=12, column=0, columnspan=2, sticky="nsew")
-        # tkinter.Button(self.detailsPanel, text="Delete", command=self.delete_class,width = 6).grid(row=13, column=0, columnspan=2)
+
 
     def build_queue_frame(self):
         frame = self.surveyTabs.tabs()[1]
@@ -260,6 +274,7 @@ class MainWindow(tkinter.Tk):
         t.grid(row=3, column=1, sticky="nsew")
         t.bind("<Return>", self.time_changed)
         t.bind("<Tab>", self.time_changed)
+        #t.bind("<FocusOut>", self.time_changed)
 
         p = ttk.Combobox(frame, width=16)
         p["values"] = ["5", "15", "30", "60"]
@@ -268,7 +283,7 @@ class MainWindow(tkinter.Tk):
 
 
         tkinter.Label(frame, text="Classes", font=f, fg=self.tracsisBlue, relief=tkinter.GROOVE, bg="light blue").grid(
-            row=5, column=0, columnspan=2, sticky="nsew")
+            row=5, column=0, columnspan=4, sticky="nsew")
         cols = ["Class", "PCU"]
 
         for i, col in enumerate(cols):
@@ -277,6 +292,14 @@ class MainWindow(tkinter.Tk):
         classesframe.grid(row=7, column=0, columnspan=2, sticky="nsew")
 
         tkinter.Button(frame, text="Add", command=self.add_class, width=6).grid(row=8, column=0, sticky="nsew",columnspan=2)
+        tkinter.Label(frame, text="Full Site List", font=f, fg=self.tracsisBlue, relief=tkinter.GROOVE,
+                      bg="light blue").grid(
+            row=13, column=0, columnspan=4, sticky="nsew")
+        l = tkinter.Listbox(frame)
+        l.grid(row=14, column=0, columnspan=4, sticky="nsew")
+        l.bind("<<ListboxSelect>>",self.site_selected)
+
+
 
     def build_ped_frame(self):
         frame = self.surveyTabs.tabs()[2]
@@ -448,6 +471,7 @@ class MainWindow(tkinter.Tk):
         self.display_group(None)
 
     def draw_overview_site_labels(self):
+        print("drawing overview site labels")
         self.overviewPanel.delete(tkinter.ALL)
 
         iw, ih = self.baseMapImage.size
@@ -515,6 +539,7 @@ class MainWindow(tkinter.Tk):
             curItem = widget.selection()[0]
             groupName = widget.item(curItem)["values"][0]
             print("selected group",groupName)
+        self.baseMapImage = self.overviewDetails[0]
         groups = projectmanager.get_groups()
         grpList = groups[groupName]["siteList"]
         self.groupList.delete(0, tkinter.END)
@@ -579,8 +604,10 @@ class MainWindow(tkinter.Tk):
         grpList = groups[groupName]["siteList"]
         if not site in grpList:
             print("adding site", site, "to group", groupName)
-            projectmanager.add_site_to_group(groupName,site)
-            self.groupList.insert("end",site)
+            l = projectmanager.add_site_to_group(groupName,site)
+            self.groupList.delete(0, tkinter.END)
+            for item in l:
+                self.groupList.insert(tkinter.END, item)
             self.draw_overview_site_labels()
 
     def delete_site_from_group(self,event):
@@ -688,11 +715,15 @@ class MainWindow(tkinter.Tk):
                     row = 0
                 widgetFocus = (tabIndex,row*2)
         else:
-            num = projectmanager.edit_class(vals,row,tabIndex)
-            index = (row * 2) + 1 + col
-            if index > (num*2) -1:
-                index = (num*2)-1
-            widgetFocus =(tabIndex,index)
+            try:
+                temp = float(vals[1])
+                num = projectmanager.edit_class(vals,row,tabIndex)
+                index = (row * 2) + 1 + col
+                if index > (num*2) -1:
+                    index = (num*2)-1
+                widgetFocus =(tabIndex,index)
+            except ValueError as e:
+                print("couldnt convert to float")
         self.display_classes(widgetFocus=widgetFocus)
 
 
@@ -717,35 +748,49 @@ class MainWindow(tkinter.Tk):
             messagebox.showinfo(message="Incorrect date format, must be dd/mm/yyyy")
             surveyDets = projectmanager.get_survey_details(survey)
             event.widget.delete(0, "end")
-            event.widget.insert(0, datetime.datetime.strftime(surveyDets[0], "%d/%m/%Y"))
+            if not surveyDets[0] is None:
+                event.widget.insert(0, datetime.datetime.strftime(surveyDets[0], "%d/%m/%Y"))
             return
         projectmanager.change_survey_date(d,tabIndex)
 
     def time_changed(self,event):
         tabIndex = self.surveyTabs.index(self.surveyTabs.select())
         survey = ["J", "Q", "P"][tabIndex]
-        text = event.widget.get("1.0",tkinter.END).strip()
-        periods = text.split(",")
-        for p in periods:
-            print("checking period",p)
-            times = p.split("-")
-            try:
-                print("checking times",times)
-                start = times[0]
-                end = times[1]
-                for t in [start,end]:
-                    t = datetime.datetime.strptime(t,"%H:%M")
-            except Exception as e:
-                messagebox.showinfo(message="Incorrect time format, must be hh:mm-hh:mm")
-                surveyDets = projectmanager.get_survey_details(survey)
-                event.widget.delete('1.0', tkinter.END)
-                event.widget.insert(tkinter.END, surveyDets[1])
-                return
+        text = event.widget.get('1.0', 'end-1c').strip()
+        if not self.check_times(text):
+            messagebox.showinfo(message="Incorrect time format, must be hh:mm-hh:mm")
+            surveyDets = projectmanager.get_survey_details(survey)
+            event.widget.delete('1.0', tkinter.END)
+            event.widget.insert(tkinter.END, surveyDets[1])
+            event.widget.focus_force()
+            return
         projectmanager.change_times(text, tabIndex)
         event.widget.delete('1.0', tkinter.END)
         event.widget.insert(tkinter.END, text)
 
+    def check_times(self,text):
+        periods = text.split(",")
+        result = ""
+        for p in periods:
+            print("checking period", p)
+            times = p.split("-")
+            try:
+                print("checking times", times)
+                start = times[0]
+                end = times[1]
+                for t in [start, end]:
+                    t[4]
+                    t = datetime.datetime.strptime(t, "%H:%M")
+                    print("t is", t, start, end)
+            except Exception as e:
+                return False
+        return True
+
+
+
     def change_site_image_type(self):
+        if self.currentSite is None:
+            return
         map = self.nametowidget(self.mapTabs.select()).winfo_children()[0]
         print("surveytype is", map.surveyType)
         projectmanager.change_site_image_type(self.imageTypeVar.get(),self.currentSite,map.surveyType)
@@ -799,15 +844,39 @@ class MainWindow(tkinter.Tk):
             children = frame.winfo_children()
             surveyDets = projectmanager.get_survey_details(survey)
             children[8].delete(0,"end")
-            children[8].insert(0,datetime.datetime.strftime(surveyDets[0],"%d/%m/%Y"))
+            if not surveyDets[0] is None:
+                children[8].insert(0,datetime.datetime.strftime(surveyDets[0],"%d/%m/%Y"))
+            else:
+                children[8].insert(0,"")
             children[9].delete('1.0', tkinter.END)
             children[9].insert(tkinter.END,surveyDets[1])
             children[10].set(surveyDets[2])
+            print("type of widget is",type(children[len(children)-2]))
+            if survey == "J":
+                children[len(children) - 2].delete(0,tkinter.END)
+                for item in projectmanager.get_site_list():
+                    children[len(children) - 2].insert(tkinter.END,item)
+
+            else:
+                children[len(children) - 1].delete(0, tkinter.END)
+                for item in projectmanager.get_site_list():
+                    children[len(children) - 1].insert(tkinter.END,item)
             self.update()
             #children[16].config(width=frame.winfo_reqwidth())
 
         self.load_overview_map()
         self.display_classes()
+
+    def site_selected(self,event):
+        print("selected",event.widget.curselection(),event.widget.get(event.widget.curselection()[0]))
+        site = projectmanager.load_selected_site(self.currentSite,event.widget.curselection()[0])
+        print("site is",site)
+        print("current site is",self.currentSite)
+        if not site is None:
+            self.currentSite = site
+            self.display_site()
+        else:
+            messagebox.showinfo(message = "Couldnt find site " + event.widget.get(event.widget.curselection()[0]))
 
     def display_site(self):
         for child in self.siteDisplayFrame.winfo_children():
@@ -840,22 +909,38 @@ class MainWindow(tkinter.Tk):
         self.imageTypeVar.set(projectmanager.get_image_type(self.currentSite, map.surveyType))
 
     def change_site_zoom(self,value):
+        if self.currentSite is None:
+            return
         map = self.nametowidget(self.mapTabs.select()).winfo_children()[0]
         print("surveytype is",map.surveyType)
+        map.clear_all()
         projectmanager.change_site_zoom(self.currentSite,value,map.surveyType)
 
         #widget = self.nametowidget(self.surveyTabs.select())
         print("map widget is", map, type(map))
         print(map.surveyType)
-        map.clear_all()
+
         map.display_site()
         #self.display_site()
 
     def export_to_excel(self):
-        frame = self.detailsPanel.winfo_children()[5]
+        details = self.detailsPanel.winfo_children()[5]
         for i in range(3):
-            if self.nametowidget(frame.winfo_children()[i]).var.get() == 1:
-               projectmanager.export_to_excel(i)
+            if self.nametowidget(details.winfo_children()[i]).var.get() == 1:
+                frame = self.surveyTabs.tabs()[i]
+                frame = self.nametowidget(frame)
+                children = frame.winfo_children()
+                if children[8].get() == "":
+                    messagebox.showinfo(message="Missing survey date for " + ["JTC","Queues","Peds"][i])
+                    return
+                if children[9].get('1.0', 'end-1c') == "":
+                    messagebox.showinfo(message="Missing times for " + ["JTC","Queues","Peds"][i])
+                    return
+                if children[10].get() == "":
+                    messagebox.showinfo(message="Missing periods for " + ["JTC","Queues","Peds"][i])
+                    return
+
+                projectmanager.export_to_excel(i)
         messagebox.showinfo(message="Export Complete")
         return
 
@@ -902,11 +987,15 @@ class MainWindow(tkinter.Tk):
     def increment_map(self,event):
         print("pressed right arrow")
         self.currentSite = projectmanager.load_next_site(self.currentSite)
+        if self.currentSite is None:
+            return
         self.display_site()
 
     def decrement_map(self,event):
         print("pressed left arrow")
         self.currentSite = projectmanager.load_previous_site(self.currentSite)
+        if self.currentSite is None:
+            return
         self.display_site()
 
     def load_map_panel_map(self,siteName):
@@ -932,6 +1021,21 @@ class MainWindow(tkinter.Tk):
         self.delete(tkinter.ALL)
         self.create_image(0, 0, image=img, anchor=tkinter.NW)
 
+    def view_google_map(self):
+        if self.currentSite is None:
+            return
+        map = self.nametowidget(self.mapTabs.select()).winfo_children()[0]
+        print("surveytype is", map.surveyType)
+        lat,lon = self.currentSite["surveys"][map.surveyType]["latlon"]
+        l = len(str(lon)) - 1
+        lon = format(lon, "." + str(l) + "f")
+        url = "https://www.google.com/maps/place/" + str(lat) + "," + str(lon)
+        # print("url is",url)
+        if url != "":
+            try:
+                subprocess.Popen(r'"' + os.environ["PROGRAMFILES"] + '\Internet Explorer\IEXPLORE.EXE" ' + url)
+            except Exception as e:
+                messagebox.showinfo(message="Something went wrong when trying to display timetable in IE")
 
 win = MainWindow()
 win.mainloop()

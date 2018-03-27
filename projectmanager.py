@@ -107,14 +107,23 @@ def delete_group(groupName):
             project["groups"]["Group " + str(index)] = project["groups"].pop(key)
     print(sorted(project["groups"].keys(), key=lambda x: 0 if x == "ALL" else int(x.replace("Group ", "").strip())))
 
-
 def add_site_to_group(groupName,site):
     global project
     project["groups"][groupName]["siteList"].append(site)
+    print("sitelist is",project["groups"][groupName]["siteList"])
+    temp = [(p,project["sites"][p]["order"]) for p in project["groups"][groupName]["siteList"]]
+    print("temp is",temp)
+    temp = sorted(temp,key=lambda x:x[1])
+    print("temp is now",temp)
+    project["groups"][groupName]["siteList"] = [t[0] for t in temp]
+    project["groups"][groupName]["image"] = None
+    return project["groups"][groupName]["siteList"]
 
 def delete_site_from_group(groupName,site):
     global project
     project["groups"][groupName]["siteList"].remove(site)
+    project["groups"][groupName]["image"] = None
+    #download_group_map(groupName)
 
 def get_groups():
     return project["groups"]
@@ -180,6 +189,7 @@ def change_site_zoom(site,value,surveyType):
     map.save(str(site["Site Name"]) + ".png")
     site["surveys"][surveyType]["image"] = map.resize((800, 800), Image.ANTIALIAS)
     site["surveys"][surveyType]["Arms"] = {}
+    print("site is now",site)
 
 def change_site_centre_point(site,x,y,surveyType):
     ###
@@ -200,11 +210,19 @@ def change_site_centre_point(site,x,y,surveyType):
     site["surveys"][surveyType]["Arms"] = {}
     if surveyType == "J":
         download_overview_map()
-
+        for key,group in project["groups"].items():
+            if site["Site Name"] in group["siteList"]:
+                group["image"] = None
 
 def change_site_group(site,group):
     sites[site]["group"] = group
 
+def get_site_list():
+    if project is None:
+        return []
+    sites = [(k,v["order"],[key for key,value in v["surveys"].items()]) for k,v in project["sites"].items()]
+    sites = sorted(sites,key=lambda x:x[1])
+    return [s[0] + "            " +  "/".join(s[2]) for s in sites]
 
 
 
@@ -262,8 +280,11 @@ def import_site_details_from_excel():
     siteDetails.loc[mask, "Site Name"] = siteDetails[mask]["Site Name"].apply(lambda x: "Site " + x)
     mask = ~siteDetails["Site Name"].str.contains("Site ")
     siteDetails.loc[mask, "Site Name"] = siteDetails[mask]["Site Name"].apply(lambda x: "Site " + x.split("Site")[1])
+    siteDetails["Type"].fillna("J",inplace=True)
+    print("site details are",siteDetails)
     siteDetails.dropna(axis=0, inplace=True)
-    siteDetails[siteDetails["Type"].isnull()] = "J"
+
+    print("site details")
     print(siteDetails)
 
     wb = openpyxl.load_workbook(f)
@@ -351,11 +372,6 @@ def load_project():
                 project["groups"]["ALL"]["coords"].append(site["coords"])
         project["groups"]["ALL"]["image"] = None
     download_all_individual_site_maps()
-
-    with open("test" + ".pkl", "wb") as f:
-        pickle.dump(project, f)
-    with open("test" + ".pkl", "rb") as f:
-        project = pickle.load(f)
     print("after loading, project is",project)
     print(get_site_by_order(0))
     return get_site_by_order(0)
@@ -434,6 +450,21 @@ def load_next_site(site):
     if result is None:
         return site
     return result
+
+def load_selected_site(site,index):
+    ####
+    ### site is the current site, we need to remove the widget references from this site
+    ###
+
+    selectedSite = get_site_by_order(index)
+    if not selectedSite is None:
+        for _, survey in site["surveys"].items():
+            for _, arm in survey["Arms"].items():
+                print("arm is", arm)
+                arm["entry widget"] = None
+        return selectedSite
+    return None
+
 
 def export_to_excel(index):
     if index == 0:
@@ -587,35 +618,28 @@ def export_JTC_to_excel():
                 sht.cell(row=count + 100, column=i+2).value = ",".join(map(str,site)) + "," + ",".join(map(str,armData))
             count+=1
 
+    ###
+    ### create the overview map showing all sites
+    ###
+    ###
 
-
-        ###
-        ### create the overview map showing the sites in the group in red
-        ### and the other sites in black
-        ###
-
-        #img2 = Image.open("overview.png").convert('RGB')
-        #drawimage = ImageDraw.Draw(img2)
-        #fnt = ImageFont.truetype("arial", size=18)
-        #sitesInGroup = project["groups"]["siteList"]
-        #if len(sitesInGroup) > 0:
-            #print("sitesingroup",sitesInGroup)
+    img2 = project["survey details"]["J"]["overview image"].convert('RGB')
+    if not img2 is None:
+        drawimage = ImageDraw.Draw(img2)
+        fnt = ImageFont.truetype("arial", size=18)
+        sitesInGroup = project["groups"]["ALL"]["siteList"]
+        if len(sitesInGroup) > 0:
+            print(get_all_site_details())
             #siteList = [(site[0], site[1], site[2]) for site in get_all_site_details()]
-            #for site in siteList:
-                #if site[0] in sitesInGroup:
-                    #colour = "red"
-                #else:
-                    #colour  = "black"
-                #x, y = mapmanager.get_coords(overview_map_details[1], (site[1], site[2]), overview_map_details[2], size=1280)
-                #drawimage.ellipse([x - 15 - outline, y - 15 - outline, x + 15 + outline, y + 15 + outline], outline=colour,fill=colour)
-                #drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white", fill="white")
-                #drawimage.text((x - 8, y - 9), text=site[0].split(" ")[1], font=fnt, fill="black")
-            #img2.save(key  + "_sites.png")
-            #img2 = Image.open(key  + "_sites.png")
-            #excelMapImage = openpyxl.drawing.image.Image(img2)
-            #sht = wb.get_sheet_by_name("Maps")
-            #sht.add_image(excelMapImage, "H" + str(2 + count))
-            #count += 1
+            for site in get_all_site_details():
+                colour  = "black"
+                x, y = site[1]
+                drawimage.ellipse([x - 15 - outline, y - 15 - outline, x + 15 + outline, y + 15 + outline], outline=colour,fill=colour)
+                drawimage.ellipse([x - 15, y - 15, x + 15, y + 15], outline="white", fill="white")
+                drawimage.text((x - 8, y - 9), text=site[0].split(" ")[1], font=fnt, fill="black")
+            excelMapImage = openpyxl.drawing.image.Image(img2)
+            sht = wb.get_sheet_by_name("Maps")
+            sht.add_image(excelMapImage, "AA4")
 
     print("saving")
     try:

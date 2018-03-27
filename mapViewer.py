@@ -59,6 +59,8 @@ class MapViewer(tkinter.Canvas):
 
     def display_site(self):
         #self.delete(tkinter.ALL)
+        numArms = len(self.site["surveys"][self.surveyType]["Arms"].items())
+        self.currentArmLabel = chr(ord("A") + numArms)
         for child in self.find_all():
             tags = self.gettags(child)
             print("tags are",tags)
@@ -133,6 +135,7 @@ class MapViewer(tkinter.Canvas):
         else:
             item = self.site["surveys"][self.surveyType]["Arms"][armName]["entry widget"]
             currentCoords = self.coords(item)
+            print("armname is",armName,"coords are",currentCoords,"site is")
             dx = x -currentCoords[0]
             dy = y - currentCoords[1]
             self.move_widget(armName,dx,dy)
@@ -375,7 +378,7 @@ class MapViewer(tkinter.Canvas):
             if self.activity == "drawing line":
                 print("clicked while drawing line active")
                 self.selectedVertex+=1
-                if not self.controlDown:
+                if not self.controlDown or self.surveyType == "J":
                     self.activity = None
                     self.unbind("<Motion>")
                 else:
@@ -472,6 +475,7 @@ class MapViewer(tkinter.Canvas):
                     self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["entry widget coords"] = self.coords(widget)
         if self.activity == "map":
             print("dropped map at",event.x,event.y,"total movement was ",self.totalMovement)
+            self.clear_all()
             projectmanager.change_site_centre_point(self.site,self.totalMovement[0],self.totalMovement[1],self.surveyType)
             self.loadOverviewMapFunction()
         self.activity = None
@@ -499,9 +503,6 @@ def length_of_line_in_pixels(coords):
 
 
 
-site = projectmanager.load_project_from_pickle("test.pkl")
-#site["surveys"]["J"]["Arms"]["A"] = {"coords":[100,100],"line vertices":[100,100,200,200],"road name":"Wibble road","entry widget coords":None,"entry widget":None}######
-print("site is",site)
 #win = tkinter.Tk()
 #canvas = MapViewer(win,800,800,"J")
 #canvas.grid(row=0,column=0)
