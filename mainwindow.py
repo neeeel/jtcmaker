@@ -14,7 +14,7 @@ import subprocess
 import os
 
 baseClasses = [["Car","Car/Taxi",1],["LGV","Light Goods Vehicle",1],["OGV1","Other Goods Vehicle 1",1.5],["OGV2","Other Goods Vehicle 2",2.3],["PSV","Omnibus",2],["MC","Motorcycle",0.4],["PC","Pedal Cycle",0.2]]
-surveyTypes = {"J":"JTC","Q":"Queue","P":"Ped"}
+surveyTypes = {"J":"JTC","L":"Link","P":"Ped"}
 
 
 class MainWindow(tkinter.Tk):
@@ -68,13 +68,13 @@ class MainWindow(tkinter.Tk):
 
         self.surveyTabs = ttk.Notebook(self.detailsPanel)
         self.surveyTabs.grid(row=2, column=0)
-        for survey in ["JTC","Queue","Ped"]:
+        for survey in ["JTC","Link"]:
             frame = tkinter.Frame(self.detailsPanel)
             self.surveyTabs.add(frame, text=survey)
-
+        self.surveyTabs.bind("<<NotebookTabChanged>>",self.tab_changed)
         self.build_JTC_frame()
-        self.build_queue_frame()
-        self.build_ped_frame()
+        self.build_queue_frame() #### Queue actually is LINK!!!!!!!
+        #self.build_ped_frame()
         self.update()
 
 
@@ -82,7 +82,7 @@ class MainWindow(tkinter.Tk):
         self.mapLabel.grid(row = 0,column = 1,sticky="nsew")
         tkinter.Button(self.detailsPanel,text="Export",command=self.export_to_excel).grid(row=4,column=0,sticky="nsew",padx=3)
         frame = tkinter.Frame(self.detailsPanel)
-        for col,surveyType in enumerate(["JTC","Queue","Ped"]):
+        for col,surveyType in enumerate(["JTC","Link","Ped"]):
             var = tkinter.IntVar()
             c = tkinter.Checkbutton(frame,text=surveyType,variable=var)
             c.grid(row=0,column=col)
@@ -132,6 +132,7 @@ class MainWindow(tkinter.Tk):
     def display_project_details(self):
         for child in self.winfo_children()[1:]:
             child.destroy()
+
 
     def build_JTC_frame(self):
         frame = self.surveyTabs.tabs()[0]
@@ -241,7 +242,7 @@ class MainWindow(tkinter.Tk):
 
         ##########################################################################################
         #
-        # queue TAB
+        # LINK TAB
         #
         ##########################################################################################
 
@@ -298,7 +299,6 @@ class MainWindow(tkinter.Tk):
         l = tkinter.Listbox(frame)
         l.grid(row=14, column=0, columnspan=4, sticky="nsew")
         l.bind("<<ListboxSelect>>",self.site_selected)
-
 
 
     def build_ped_frame(self):
@@ -650,7 +650,7 @@ class MainWindow(tkinter.Tk):
 
     def display_classes(self,widgetFocus=None):
         vcmd = (self.register(self.verify_class), "%d", "%s", "%S")
-        for i in range(3):
+        for i in range(2):
             frame = self.surveyTabs.tabs()[i]
             frame = self.nametowidget(frame).winfo_children()[14]
             print("frame is",type(frame))
@@ -733,6 +733,13 @@ class MainWindow(tkinter.Tk):
     ###
     ########################################################################################################################
 
+    def tab_changed(self,event):
+        print(event.widget)
+        print("current tab is",self.surveyTabs.select())
+        print("tab index is",self.surveyTabs.index(self.surveyTabs.select()))
+
+
+
     def period_changed(self,event):
         print("current value is",event.widget.get())
         tabIndex = self.surveyTabs.index(self.surveyTabs.select())
@@ -740,7 +747,7 @@ class MainWindow(tkinter.Tk):
 
     def date_changed(self,event):
         tabIndex = self.surveyTabs.index(self.surveyTabs.select())
-        survey = ["J","Q","P"][tabIndex]
+        survey = ["J","L","P"][tabIndex]
         text = event.widget.get()
         try:
             d = datetime.datetime.strptime(text,"%d/%m/%Y")
@@ -755,7 +762,7 @@ class MainWindow(tkinter.Tk):
 
     def time_changed(self,event):
         tabIndex = self.surveyTabs.index(self.surveyTabs.select())
-        survey = ["J", "Q", "P"][tabIndex]
+        survey = ["J", "L", "P"][tabIndex]
         text = event.widget.get('1.0', 'end-1c').strip()
         if not self.check_times(text):
             messagebox.showinfo(message="Incorrect time format, must be hh:mm-hh:mm")
@@ -787,7 +794,6 @@ class MainWindow(tkinter.Tk):
         return True
 
 
-
     def change_site_image_type(self):
         if self.currentSite is None:
             return
@@ -798,6 +804,7 @@ class MainWindow(tkinter.Tk):
         print(map.surveyType)
         #map.clear_all()
         map.display_site()
+
 
     def load_project(self):
         #self.mapPanel.delete(tkinter.ALL)
@@ -831,13 +838,14 @@ class MainWindow(tkinter.Tk):
         if not self.currentSite is None:
             self.display_site()
 
+
     def display_project(self):
         print("current site is", self.currentSite)
         projectDetails = projectmanager.get_project_details()
         print("project details are",projectDetails)
         self.jobNameVar.set(projectDetails[0])
         self.jobNumVar.set(projectDetails[1])
-        for i,survey in enumerate(["J","Q"]):
+        for i,survey in enumerate(["J","L"]):
             print("--" * 100)
             frame = self.surveyTabs.tabs()[i]
             frame = self.nametowidget(frame)  #.winfo_children()[14]
@@ -895,8 +903,8 @@ class MainWindow(tkinter.Tk):
             map.display_site()
             if "J" in self.currentSite["surveys"]:
                 self.imageTypeVar.set(projectmanager.get_image_type(self.currentSite,"J"))
-            elif "Q" in self.currentSite["surveys"]:
-                self.imageTypeVar.set(projectmanager.get_image_type(self.currentSite, "Q"))
+            elif "L" in self.currentSite["surveys"]:
+                self.imageTypeVar.set(projectmanager.get_image_type(self.currentSite, "L"))
             elif "P" in self.currentSite["surveys"]:
                 self.imageTypeVar.set(projectmanager.get_image_type(self.currentSite, "P"))
             self.mapTabs.select(0)
@@ -924,20 +932,20 @@ class MainWindow(tkinter.Tk):
         #self.display_site()
 
     def export_to_excel(self):
-        details = self.detailsPanel.winfo_children()[5]
+        details = self.detailsPanel.winfo_children()[4]
         for i in range(3):
             if self.nametowidget(details.winfo_children()[i]).var.get() == 1:
                 frame = self.surveyTabs.tabs()[i]
                 frame = self.nametowidget(frame)
                 children = frame.winfo_children()
                 if children[8].get() == "":
-                    messagebox.showinfo(message="Missing survey date for " + ["JTC","Queues","Peds"][i])
+                    messagebox.showinfo(message="Missing survey date for " + ["JTC","Link","Peds"][i])
                     return
                 if children[9].get('1.0', 'end-1c') == "":
-                    messagebox.showinfo(message="Missing times for " + ["JTC","Queues","Peds"][i])
+                    messagebox.showinfo(message="Missing times for " + ["JTC","Link","Peds"][i])
                     return
                 if children[10].get() == "":
-                    messagebox.showinfo(message="Missing periods for " + ["JTC","Queues","Peds"][i])
+                    messagebox.showinfo(message="Missing periods for " + ["JTC","Link","Peds"][i])
                     return
 
                 projectmanager.export_to_excel(i)

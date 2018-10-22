@@ -39,28 +39,28 @@ project = None
 ####################################################################################################
 
 def get_classes(surveyIndex):
-    surveyType = ["J","Q","P"][surveyIndex]
+    surveyType = ["J","L","P"][surveyIndex]
     return project["survey details"][surveyType]["classes"]
 
 def delete_class(index,surveyIndex):
-    surveyType = ["J", "Q", "P"][surveyIndex]
+    surveyType = ["J", "L", "P"][surveyIndex]
     project["survey details"][surveyType]["classes"].pop(index)
     return len(project["survey details"][surveyType]["classes"])
 
 def add_class(vals,surveyIndex):
     if project is None:
         return 0
-    surveyType = ["J", "Q", "P"][surveyIndex]
+    surveyType = ["J", "L", "P"][surveyIndex]
     project["survey details"][surveyType]["classes"].append(vals)
     return len(project["survey details"][surveyType]["classes"])
 
 def edit_class(vals,index,surveyIndex):
-    surveyType = ["J", "Q", "P"][surveyIndex]
+    surveyType = ["J", "L", "P"][surveyIndex]
     project["survey details"][surveyType]["classes"][index] = vals
     return len(project["survey details"][surveyType]["classes"])
 
 def move_class_up(index,surveyIndex):
-    surveyType = ["J", "Q", "P"][surveyIndex]
+    surveyType = ["J", "L", "P"][surveyIndex]
     if index == 0:
         return index
     temp = project["survey details"][surveyType]["classes"][index]
@@ -69,7 +69,7 @@ def move_class_up(index,surveyIndex):
     return index -1
 
 def move_class_down(index,surveyIndex):
-    surveyType = ["J", "Q", "P"][surveyIndex]
+    surveyType = ["J", "L", "P"][surveyIndex]
     if index == len(project["survey details"][surveyType]["classes"])-1:
         return index
     temp = project["survey details"][surveyType]["classes"][index]
@@ -136,17 +136,17 @@ def get_groups():
 ####################################################################################################
 
 def change_period(val,surveyIndex):
-    surveyType = ["J", "Q", "P"][surveyIndex]
+    surveyType = ["J", "L", "P"][surveyIndex]
     project["survey details"][surveyType]["period"] = val
     print("survey details are",project["survey details"])
 
 def change_survey_date(d,surveyIndex):
-    surveyType = ["J", "Q", "P"][surveyIndex]
+    surveyType = ["J", "L", "P"][surveyIndex]
     project["survey details"][surveyType]["date"] = d
 
 def change_times(t,surveyIndex):
     print("received",t)
-    surveyType = ["J", "Q", "P"][surveyIndex]
+    surveyType = ["J", "L", "P"][surveyIndex]
     project["survey details"][surveyType]["times"] = t
     print("times for ",surveyType,"are",project["survey details"][surveyType]["times"])
 
@@ -292,7 +292,7 @@ def import_site_details_from_excel():
     project["jobNumber"] = wb.worksheets[0]["F4"].value
     project["jobName"] = wb.worksheets[0]["F6"].value
     project["survey details"] = {}
-    surveyTypes = ["J","P","Q"]
+    surveyTypes = ["J","L","P"]
     for index,survey in enumerate(surveyTypes):
         project["survey details"][survey] = {}
         project["survey details"][survey]["date"] = format_date(wb.worksheets[0].cell(row=8+index, column=6).value)
@@ -303,9 +303,9 @@ def import_site_details_from_excel():
                 pcu = int(wb.worksheets[0].cell(row=13 + (2*index),column=col).value)
             except Exception as e:
                 pcu = 1
-                project["survey details"][survey]["classes"].append([wb.worksheets[0].cell(row=12+(2*index),column=col).value,pcu])
+            project["survey details"][survey]["classes"].append([wb.worksheets[0].cell(row=12+(2*index),column=col).value,pcu])
             col+=1
-
+        print("loaded classes",project["survey details"][survey]["classes"])
         project["survey details"][survey]["times"] = ""
         project["survey details"][survey]["period"] = "15"
         col = 6
@@ -345,10 +345,8 @@ def import_site_details_from_excel():
             project["sites"][site[0]]["surveys"][survey]["zoom"] = individual_site_zoom_value
             if survey.upper() == "J":
                 project["sites"][site[0]]["surveys"][survey]["zoom"]+=1
-            if survey.upper() == "Q":
-                project["sites"][site[0]]["surveys"][survey]["imageType"] = "satellite"
-            else:
-                project["sites"][site[0]]["surveys"][survey]["imageType"] = "roadmap"
+
+            project["sites"][site[0]]["surveys"][survey]["imageType"] = "roadmap"
             project["sites"][site[0]]["surveys"][survey]["image"] = None
             project["sites"][site[0]]["surveys"][survey]["latlon"] = (site[1], site[2])
     print("project is",project)
@@ -471,7 +469,7 @@ def export_to_excel(index):
         print("exporting JTC")
         export_JTC_to_excel()
     if index == 1:
-        export_Q_to_excel()
+        export_Link_to_excel()
 
 def export_JTC_to_excel():
     global groups
@@ -649,6 +647,112 @@ def export_JTC_to_excel():
         messagebox.showinfo(message="file is already open, please close file and retry exporting")
         return
 
+
+def export_Link_to_excel():
+    file = filedialog.asksaveasfilename()
+    if file == "" or file is None:
+        return
+    wb = openpyxl.load_workbook("Link Count Template.xlsm", keep_vba=True)
+
+    sht = wb.get_sheet_by_name("Maps")
+
+    img = Image.open("Tracsis logo.png")
+    imgSmall = img  # .resize((247, 78), Image.ANTIALIAS)
+    excelImageSmall = openpyxl.drawing.image.Image(imgSmall)
+    sht.add_image(excelImageSmall, "AA1")
+
+    img = Image.open("Tracsis Icon.png")
+    imgSmall = img  # .resize((25, 25), Image.ANTIALIAS)
+    excelImageSmall = openpyxl.drawing.image.Image(imgSmall)
+    sht.add_image(excelImageSmall, "AA2")
+
+    img = Image.open("Tracsis-banner.png")
+    imgSmall = img  # .resize((25, 25), Image.ANTIALIAS)
+    excelImageSmall = openpyxl.drawing.image.Image(imgSmall)
+    sht.add_image(excelImageSmall, "AA3")
+
+    sht = wb.get_sheet_by_name("Dashboard")
+
+    c1 = BarChart()
+    c1.title = "Class Ratios"
+    sht.add_chart(c1, "AB5")
+
+    c1 = BarChart()
+    c1.title = "Total Volumes"
+    sht.add_chart(c1, "M25")
+
+    sht = wb.get_sheet_by_name("Data")
+    sht.cell(row=2, column=14).value = project["survey details"]["L"]["times"]
+    sht.cell(row=3, column=14).value = project["survey details"]["L"]["period"]
+    sht.cell(row=4, column=14).value = project["jobNumber"]
+    sht.cell(row=5, column=14).value = project["jobName"]
+    sht.cell(row=6, column=14).value = project["survey details"]["L"]["date"]
+    for index, cl in enumerate(project["survey details"]["L"]["classes"]):
+        sht.cell(row=index + 2, column=50).value = cl[0]
+        sht.cell(row=index + 2, column=52).value = cl[1]
+    row = 2
+    count = 0
+    fnt = ImageFont.truetype("arial", size=18)
+    for key,site in sorted(project["sites"].items(),key=lambda x:x[1]["order"]): ### sorted(sites.items(),key=lambda x:int(x[0].replace("Site ","").strip())):
+        print("checking",site)
+        if "L" in site["surveys"]:
+            print("found survey",site["surveys"]["L"])
+            sht = wb.get_sheet_by_name("Maps")
+            sht.cell(row=count + 2, column=1).value = key
+            sht.cell(row=count + 2, column=13).value = "No relevant observations"
+            sht = wb.get_sheet_by_name("Data")
+            siteImg = site["surveys"]["L"]["image"].convert('RGB')
+            siteImg = siteImg.resize((800, 800), Image.ANTIALIAS)
+            drawimage = ImageDraw.Draw(siteImg)
+            if len(site["surveys"]["L"]["Arms"]) != 0:
+                col = 4
+                sht.cell(row=row, column=1).value = key
+
+                sht.cell(row=row, column=4).value = str(site["surveys"]["L"]["latlon"][0]) + "," + str(
+                    site["surveys"]["L"]["latlon"][1])
+
+                for label, arm in sorted(site["surveys"]["L"]["Arms"].items()):
+                    sht.cell(row=row, column=5).value = arm["road name"]
+                    print("looking at",arm)
+
+                    coords = arm["line vertices"]
+                    coords = [c -5  for c in coords]
+                    drawimage.line(coords,fill="black",width=3)
+
+                    for line in arm["perpendicular lines"]:
+                        p,colour = line
+                        print("p is",p)
+                        p=[item - 5 for item in p]
+                        print("p is now",p)
+                        #x = x *excelMapWidth / 800
+                        #y = y *excelMapWidth/800
+                        perpLine = calc_perpendicular_line(p,arm["line vertices"])
+                        #perpLine = [l-5 for l in perpLine]
+                        drawimage.line(perpLine,fill=colour,width=3)
+                        #drawimage.ellipse([p[0]-5,p[1] - 5,p[0] + 5,p[1] + 5],outline="black",fill="black")
+                        if colour == "red":
+                            direction = "up"
+                        else:
+                            direction = "down"
+                        triangle = calculate_arrow_head(perpLine,direction)
+                        drawimage.polygon(triangle,fill=colour)
+                    col += 1
+                    siteImg.show()
+                row += 1
+                #img2 = siteImg.resize((800, 800), Image.ANTIALIAS)
+                excelMapImage = openpyxl.drawing.image.Image(siteImg)
+                sht = wb.get_sheet_by_name("Maps")
+                sht.add_image(excelMapImage, "B" + str(2 + count))
+                count += 1
+    print("saving")
+    try:
+
+        wb.save(filename=file + " LINK .xlsm")
+    except PermissionError as e:
+        messagebox.showinfo(message="file is already open, please close file and retry exporting")
+        return
+
+
 def export_Q_to_excel():
     global groups
     file = filedialog.asksaveasfilename()
@@ -782,14 +886,19 @@ def get_all_site_details():
     return coords
 
 def download_all_individual_site_maps():
+    imageDict = {}
     for siteName,site in project["sites"].items():
         print("site is",site)
         for surveyType,survey in site["surveys"].items():
             print("survety is",survey)
             x,y = survey["latlon"]
-            map = mapmanager.load_high_def_map_with_labels(x,y,survey["zoom"],imageType=survey["imageType"])
-            survey["image"] = map.resize((800, 800), Image.ANTIALIAS)
-            map.save(siteName + ".png")
+            if not siteName in imageDict:
+                map = mapmanager.load_high_def_map_with_labels(x,y,survey["zoom"],imageType=survey["imageType"])
+            else:
+                map = imageDict[siteName]
+            mapCopy = map.copy()
+            survey["image"] = mapCopy.resize((800, 800), Image.ANTIALIAS)
+            mapCopy.save(siteName + ".png")
 
 def download_overview_map():
     global overview_map_details,project
@@ -828,6 +937,61 @@ def download_group_map(groupName):
         drawimage.text((x-8, y-9), text=site.split(" ")[1],font=fnt, fill="black")
     project["groups"][groupName]["image"] = img2
     return project["groups"][groupName]["image"]
+
+
+def calc_perpendicular_line(p, line,length=50):
+    x, y = p
+    print("in calc perp , coords are ", x, y)
+    print("coords of line are", line)
+    x1, y1, x2, y2 = line
+    v = [-(y2 - y1), (x2 - x1)]  ## vector of perpendicular line
+    mag = (v[0] ** 2 + v[1] ** 2) ** 0.5
+    unitV = [v[0] / mag, v[1] / mag]
+    return [x + unitV[0] * length, y + unitV[1] * length, x - unitV[0] * length, y - unitV[1] * length]
+
+def calculate_arrow_head(line,direction):
+    print("in arrow, line is",line,direction)
+    point = [0,0]
+    x1, y1, x2, y2 = line
+    if direction == "down":
+        if y1 > y2 :
+            point = [x1,y1]
+
+            v = [(x1 - x2), (y1 - y2)]
+        else:
+            point = [x2,y2]
+            v = [(x2 - x1), (y2 - y1)]
+    if direction == "up":
+        if y1 > y2 :
+            point = [x2,y2]
+
+            v = [(x1 - x2), (y1 - y2)]
+        else:
+            point = [x1,y1]
+            v = [(x2 - x1), (y2 - y1)]
+    print("selected point is",point)
+    baseLine = calc_perpendicular_line(point,line,5)
+
+      ## vector of perpendicular line
+    mag = (v[0] ** 2 + v[1] ** 2) ** 0.5
+    unitV = [v[0] / mag, v[1] / mag]
+    if direction == "up":
+        baseLine+=[point[0] - unitV[0] * 10,point[1] - unitV[1] * 10]
+        for index, item in enumerate(baseLine):
+            if index % 2 == 0:
+                baseLine[index] = baseLine[index] + unitV[0] * 10
+            else:
+                baseLine[index] = baseLine[index] + unitV[1] * 10
+    else:
+        baseLine += [point[0] + unitV[0] * 10, point[1] + unitV[1] * 10]
+        for index, item in enumerate(baseLine):
+            if index % 2 == 0:
+                baseLine[index] = baseLine[index] - unitV[0] * 10
+            else:
+                baseLine[index] = baseLine[index] - unitV[1] * 10
+
+    return baseLine
+
 
 def road_orientation(angle):
     if angle > 360:

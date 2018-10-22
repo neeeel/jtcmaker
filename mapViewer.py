@@ -14,6 +14,7 @@ class MapViewer(tkinter.Canvas):
         self.armLabelRadius = 15
         self.fontsize = 10
         self.controlDown = False
+        self.mapMoved = False
         self.currentArmLabel = "A"
         self.bind("<Button-1>", self.left_mouse_clicked)
         self.bind_all("<Delete>", self.delete_arm)
@@ -57,6 +58,7 @@ class MapViewer(tkinter.Canvas):
         self.currentArmLabel = chr(ord(self.currentArmLabel) + numArms)
         self.metresPerPixel=metres_per_pixel(self.site["surveys"][self.surveyType]["latlon"][0],self.site["surveys"][self.surveyType]["zoom"])
 
+
     def display_site(self):
         #self.delete(tkinter.ALL)
         numArms = len(self.site["surveys"][self.surveyType]["Arms"].items())
@@ -77,6 +79,12 @@ class MapViewer(tkinter.Canvas):
             self.draw_arm_label(label, arm["coords"][0], arm["coords"][1])
             self.draw_arm_line(label,arm["line vertices"])
             self.draw_arm_road_label(label)
+            for index,line in enumerate(self.site["surveys"][self.surveyType]["Arms"][label]["perpendicular lines"]):
+                p,col = line
+                result = self.draw_perpendicular_line(p,arm["line vertices"],label,col)
+                self.site["surveys"][self.surveyType]["Arms"][label]["perpendicular lines"][index][0] = result
+
+
 
     def draw_arm_road_label(self,armName):
         coords = self.site["surveys"][self.surveyType]["Arms"][armName]["line vertices"]
@@ -115,6 +123,7 @@ class MapViewer(tkinter.Canvas):
             e.grid(row=1,column=0,columnspan=2,sticky="nsew")
             #l.bind("<Button-1>",lambda event,label=armName:self.pick_up_window(event,label))
             spinCommand = self.register(lambda w,d,l=armName:self.spinbutton_pressed(w,d,l))
+
             if self.surveyType == "Q":
                 tkinter.Label(frame,text="Lanes").grid(row=2,column=0)
                 s = tkinter.Spinbox(frame,command=(spinCommand,'%W', '%d'),from_=1, to=6,width=2)
@@ -139,6 +148,7 @@ class MapViewer(tkinter.Canvas):
             dx = x -currentCoords[0]
             dy = y - currentCoords[1]
             self.move_widget(armName,dx,dy)
+
 
     def spinbutton_pressed(self,widget,dir,armName):
         widget = self.nametowidget(widget)
@@ -170,6 +180,7 @@ class MapViewer(tkinter.Canvas):
         f = tkinter.font.Font(family='Helvetica', size=self.fontsize, weight=tkinter.font.BOLD)
         self.create_oval(x-self.armLabelRadius,y-self.armLabelRadius,x+self.armLabelRadius,y+self.armLabelRadius,width = 3,outline="red",tags=(str(armName),"circle"))
         self.create_text((x,y),text=armName,font=f,tags=(str(armName),"textlabel"))
+
 
     def calculate_orientation(self,x1,y1,x2,y2):
         centre_X = x1  # + 15
@@ -219,9 +230,11 @@ class MapViewer(tkinter.Canvas):
             orientation = 270 + (90 - np.degrees(theta))
         return orientation
 
+
     def draw_arm_line(self,armName,coords):
         coords = list(coords)
         print("coords are",coords)
+        print("survey type is",self.surveyType)
         x1,y1,x2,y2 = coords[:4]
         centre_X = x1 #+ 15
         centre_Y = y1 #+ 15
@@ -286,6 +299,7 @@ class MapViewer(tkinter.Canvas):
                     print(child,type(child))
                 window.winfo_children()[4].config(text = str(length) + "m")
 
+
     def move_widget(self,armName,dx,dy):
         if not self.site["surveys"][self.surveyType]["Arms"][armName]["entry widget"] is None:
             item = self.site["surveys"][self.surveyType]["Arms"][armName]["entry widget"]
@@ -298,13 +312,17 @@ class MapViewer(tkinter.Canvas):
                     self.move(child,dx,dy)
             #self.site["surveys"][self.surveyType]["Arms"][armName]["entry widget coords"] = self.coords(item)
 
+
     def left_mouse_clicked(self,event):
-        print("self.activity is",self.activity,"control down is",self.controlDown)
+        #print("self.activity is",self.activity,"control down is",self.controlDown)
         x = event.x - self.canvasx(0)
         y = event.y - self.canvasy(0)
-        print("coords are",event.x,event.y,x,y)
+        #print("coords are",event.x,event.y,x,y)
         if self.activity is None:
             if self.controlDown:
+                if self.surveyType == "L" and len(self.site["surveys"][self.surveyType]["Arms"]) == 1:
+                    ### only need 1 line for Link surveys
+                    return
                 self.activity = "drawing line"
                 self.currentSelectedArm = self.currentArmLabel
                 self.selectedVertex = 1
@@ -316,6 +334,7 @@ class MapViewer(tkinter.Canvas):
                 arm["entry widget coords"] = None
                 arm["line vertices"] = [x,y,x+10,y+10]
                 arm["lanes"] = 1
+                arm["perpendicular lines"] = []
                 self.currentArmLabel = chr(ord(self.currentArmLabel) + 1)
                 self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm] = arm
                 self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["entry widget"] = None
@@ -324,17 +343,17 @@ class MapViewer(tkinter.Canvas):
                 self.bind("<Motion>", self.animate_line)
                 #self.pick_up_line()
             else:
-                selectedWidget = self.find_closest(event.x, event.y, halo=10)
+                selectedWidget = self.find_closest(event.x, event.y, halo=5)
                 if len(selectedWidget) == 0:
                     return
-                for widget in selectedWidget:
-                    print("tags for selected widget are",self.gettags(widget))
+                #for widget in selectedWidget:
+                    #print("tags for selected widget are",self.gettags(widget))
                 selectedWidget = selectedWidget[0]
                 tags = self.gettags(selectedWidget)
-                print("tags of closest widget are",tags)
+                #print("tags of closest widget are",tags)
                 allwidgetsWithTag = self.find_withtag(tags[0])
                 self.currentSelectedArm = tags[0]
-                print("tags of closest widget are",tags,allwidgetsWithTag)
+                #print("tags of closest widget are",tags,allwidgetsWithTag)
                 if "map" in tags:
                     self.activity = "map"
                     self.bind("<B1-Motion>", self.on_movement)
@@ -342,21 +361,40 @@ class MapViewer(tkinter.Canvas):
                     self.widgetCoords = (x,y)
                     self.totalMovement = [0,0]
                     return
+                if len(tags) > 1 and "perp" in tags[1]:
+                    col = self.itemcget(selectedWidget,"fill")
+                    if col == "red":
+                        self.itemconfig(selectedWidget,fill="blue")
+                    else:
+                        self.itemconfig(selectedWidget, fill="red")
+                    perpLines = self.find_withtag("perp")
+                    for index,l in enumerate(perpLines):
+                        self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["perpendicular lines"][index][1] = self.itemcget(l,"fill")
+
+                    return
                 if len(tags) > 1 and "line" in tags[1]:
-                    print("clicked a line")
+                    #print("clicked a line")
+                    if self.surveyType == "L":
+                        endX,endY = self.coords(selectedWidget)[-2:]
+                        dist = ((x-endX)**2 + (y-endY)**2)**0.5
+                        #print("dist from end is",dist)
+                        if dist >5:
+                            p = self.widget_line_clicked(event,selectedWidget)
+                            self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["perpendicular lines"].append([p,"red"])
+                            return
                     self.activity = "editing line"
                     self.selectedVertex = int(tags[1].split("_")[1]) + 1
                     self.currentSelectedArm = tags[0]
                     self.bind("<Motion>", self.animate_line)
                 if len(tags) > 1 and "header" in tags:
-                    print("found window")
+                    #print("found window")
                     self.activity = "moving window"
                     self.bind("<B1-Motion>", self.on_movement)
                     self.bind("<ButtonRelease>", self.on_release_movement)
                     self.widgetCoords = self.coords(selectedWidget)
                 if len(tags) > 1 and ("circle" in tags[1] or "textlabel" in tags[1]):
                     # clicked a circle
-                    print("clicked a circle")
+                    #print("clicked a circle")
                     self.activity = "circle"
                     self.bind("<B1-Motion>", self.on_movement)
                     self.bind("<ButtonRelease>", self.on_release_movement)
@@ -372,32 +410,49 @@ class MapViewer(tkinter.Canvas):
 
 
                     self.widgetCoords = self.coords(selectedWidget)
-                    print("widgetcoords are",self.widgetCoords)
+                    #print("widgetcoords are",self.widgetCoords)
                 #self.itemconfigure(allwidgetsWithTag[2], fill="blue")
         else:
             if self.activity == "drawing line":
-                print("clicked while drawing line active")
+                #print("clicked while drawing line active")
                 self.selectedVertex+=1
-                if not self.controlDown or self.surveyType == "J":
-                    self.activity = None
-                    self.unbind("<Motion>")
-                else:
-                    self.bind_all("<Escape>",self.stop_line)
-                    self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["line vertices"] = self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["line vertices"] + [x,y]
+                self.activity = None
+                self.unbind("<Motion>")
+                #else:
+                    #self.bind_all("<Escape>",self.stop_line)
+                    #self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["line vertices"] = self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["line vertices"] + [x,y]
             if self.activity == "editing line":
                 self.activity = None
                 self.unbind("<Motion>")
+                #for p in self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["perpendicular lines"]:
+                    #self.draw_perpendicular_line()
+            if self.activity == "drawing arrow line":
+                #print("clicked while drawing arrow line active")
+                self.selectedVertex+=1
+                self.activity = None
+                self.unbind("<Motion>")
+
 
     def delete_arm(self,event):
         #print("delete pressed")
+        if len(self.site["surveys"][self.surveyType]["Arms"]) == 0:
+            print("no arms to delete")
+            return
         armToDelete = chr(ord(self.currentArmLabel) - 1)
-        if armToDelete in self.site["surveys"][self.surveyType]["Arms"]:
+        print("val of arm to delete is",ord(armToDelete))
+        if self.surveyType == "L" and len(self.site["surveys"][self.surveyType]["Arms"][armToDelete]["perpendicular lines"])>0:
+            perpLines = self.find_withtag("perp")
+            self.delete(perpLines[-1])
+            del self.site["surveys"][self.surveyType]["Arms"][armToDelete]["perpendicular lines"][-1]
+
+        elif armToDelete in self.site["surveys"][self.surveyType]["Arms"]:
             self.delete(self.site["surveys"][self.surveyType]["Arms"][armToDelete]["entry widget"])
             del self.site["surveys"][self.surveyType]["Arms"][armToDelete]
             self.currentArmLabel = armToDelete
             self.delete(armToDelete)
             self.display_site()
             self.activity = None
+
 
     def stop_line(self,event):
         print("Escape pressed")
@@ -409,15 +464,58 @@ class MapViewer(tkinter.Canvas):
         self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["line vertices"][:-2]
         self.display_site()
 
+
     def animate_line(self,event):
         winX = event.x - self.canvasx(0)
         winY = event.y - self.canvasy(0)
         coords = self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["line vertices"]
-        print("in animate line, coords are",coords,"selected vertex is",self.selectedVertex)
-        coords[2*self.selectedVertex] = winX
-        coords[(2*self.selectedVertex) + 1] = winY
+        diff = [event.x-coords[2],event.y - coords[3]]
+        print("diff is",diff)
+        #print("in animate line, coords are",coords,"selected vertex is",self.selectedVertex)
+        coords[2*self.selectedVertex] = event.x
+        coords[(2*self.selectedVertex) + 1] = event.y
         self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["line vertices"] = coords
+        for index,line in enumerate(self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["perpendicular lines"]):
+            p,_ = line
+            self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["perpendicular lines"][index][0]= [p[0] + diff[0],p[1] + diff[1]]
+
         self.display_site()
+
+
+    def animate_arrow_line(self,event):
+        winX = event.x - self.canvasx(0)
+        winY = event.y - self.canvasy(0)
+        print("coords are ",winX,winY)
+
+
+    def widget_line_clicked(self, event, widget):
+        line = self.coords(widget)
+        p = [event.x - self.canvasx(0),event.y - self.canvasy(0)]
+        result = self.draw_perpendicular_line(p,line,self.currentSelectedArm)
+        return result
+
+
+    def draw_perpendicular_line(self,p,line,label,col="red"):
+        centreX,centreY = p
+        #print("coords are ", centreX, centreY)
+        #print("coords of line are",line)
+        print("drawing perp at",p)
+        x1,y1,x2,y2 = line
+        v=[-(y2-y1),(x2-x1)]## vector of perpendicular line
+        mag = (v[0]**2 + v[1]**2)**0.5
+        unitV = [v[0]/mag,v[1]/mag]
+        x,y = self.find_closest_point_on_line(line,[centreX,centreY])
+        self.create_line([x + unitV[0] * 50,y + unitV[1] * 50,x - unitV[0] * 50,y - unitV[1] * 50], fill=col,width=3,tags=(label,"perp"))
+        return [x,y]
+
+    def find_closest_point_on_line(self,line,point):
+        x1,y1,x2,y2 = line
+        x3,y3 = point
+        u = ((x3-x1)*(x2-x1) + (y3-y1)*(y2-y1))/((x2-x1)**2 + (y2-y1)**2)
+        x = x1 + u*(x2-x1)
+        y = y1 + u*(y2-y1)
+        return(x,y)
+
 
     def on_movement(self,event):
         winX = event.x - self.canvasx(0)
@@ -444,6 +542,7 @@ class MapViewer(tkinter.Canvas):
             for child in self.find_withtag(self.currentSelectedArm):
                 self.move(child, newX, newY)
         self.widgetCoords = (winX, winY)
+
 
     def on_release_movement(self,event):
         if self.activity == "circle":
@@ -475,20 +574,24 @@ class MapViewer(tkinter.Canvas):
                     self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm]["entry widget coords"] = self.coords(widget)
         if self.activity == "map":
             print("dropped map at",event.x,event.y,"total movement was ",self.totalMovement)
-            self.clear_all()
-            projectmanager.change_site_centre_point(self.site,self.totalMovement[0],self.totalMovement[1],self.surveyType)
+            if self.totalMovement != [0,0]:
+                self.clear_all()
+                projectmanager.change_site_centre_point(self.site,self.totalMovement[0],self.totalMovement[1],self.surveyType)
             self.loadOverviewMapFunction()
         self.activity = None
         self.unbind("<B1-Motion>")
         self.unbind("<ButtonRelease>")
         self.display_site()
 
+
     def set_callback_function(self,text,fun):
         if text == "load overview map":
             self.loadOverviewMapFunction = fun
 
+
 def metres_per_pixel(lat, zoom):
     return 156543.03 * math.cos(math.radians(lat)) / 2 ** (zoom)
+
 
 def length_of_line_in_pixels(coords):
     if len(coords) < 4:
