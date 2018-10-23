@@ -708,11 +708,14 @@ def export_Link_to_excel():
                 col = 4
                 sht.cell(row=row, column=1).value = key
 
+
                 sht.cell(row=row, column=4).value = str(site["surveys"]["L"]["latlon"][0]) + "," + str(
                     site["surveys"]["L"]["latlon"][1])
 
                 for label, arm in sorted(site["surveys"]["L"]["Arms"].items()):
+                    sht.cell(row=row, column=3).value = arm["lanes"]
                     sht.cell(row=row, column=5).value = arm["road name"]
+                    sht.cell(row=row, column=6).value = arm["direction"]
                     print("looking at",arm)
 
                     coords = arm["line vertices"]
@@ -731,10 +734,14 @@ def export_Link_to_excel():
                         drawimage.line(perpLine,fill=colour,width=3)
                         #drawimage.ellipse([p[0]-5,p[1] - 5,p[0] + 5,p[1] + 5],outline="black",fill="black")
                         if colour == "red":
-                            direction = "up"
+                            dir = arm["direction"]
                         else:
-                            direction = "down"
-                        triangle = calculate_arrow_head(perpLine,direction)
+                            dirs = ["N", "E", "S", "W"]
+                            index = dirs.index(arm["direction"])
+                            index+=2
+                            if index >=len(dirs): index-=len(dirs)
+                            dir = dirs[index]
+                        triangle = calculate_arrow_head(perpLine,dir)
                         drawimage.polygon(triangle,fill=colour)
                     col += 1
                     siteImg.show()
@@ -949,25 +956,38 @@ def calc_perpendicular_line(p, line,length=50):
     unitV = [v[0] / mag, v[1] / mag]
     return [x + unitV[0] * length, y + unitV[1] * length, x - unitV[0] * length, y - unitV[1] * length]
 
+
 def calculate_arrow_head(line,direction):
     print("in arrow, line is",line,direction)
     point = [0,0]
     x1, y1, x2, y2 = line
-    if direction == "down":
-        if y1 > y2 :
-            point = [x1,y1]
-
-            v = [(x1 - x2), (y1 - y2)]
-        else:
-            point = [x2,y2]
+    if direction == "N":
+        if y1 > y2:
+            point = [x2, y2]
             v = [(x2 - x1), (y2 - y1)]
-    if direction == "up":
-        if y1 > y2 :
-            point = [x2,y2]
-
+        else:
+            point = [x1, y1]
+            v = [(x1 - x2), (y1 - y2)]
+    if direction == "E":
+        if x1 > x2:
+            point = [x1, y1]
             v = [(x1 - x2), (y1 - y2)]
         else:
-            point = [x1,y1]
+            point = [x2, y2]
+            v = [(x2 - x1), (y2 - y1)]
+    if direction == "S":
+        if y1 < y2:
+            point = [x2, y2]
+            v = [(x2 - x1), (y2 - y1)]
+        else:
+            point = [x1, y1]
+            v = [(x1 - x2), (y1 - y2)]
+    if direction == "W":
+        if x1 < x2:
+            point = [x1, y1]
+            v = [(x1 - x2), (y1 - y2)]
+        else:
+            point = [x2, y2]
             v = [(x2 - x1), (y2 - y1)]
     print("selected point is",point)
     baseLine = calc_perpendicular_line(point,line,5)

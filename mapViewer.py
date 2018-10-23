@@ -121,9 +121,21 @@ class MapViewer(tkinter.Canvas):
             e = tkinter.Entry(frame, width=20)
             e.insert(0,self.site["surveys"][self.surveyType]["Arms"][armName]["road name"])
             e.grid(row=1,column=0,columnspan=2,sticky="nsew")
+            e.bind("<Return>", lambda event, x=armName: self.edit_road_name(event, x))
+            e.bind("<FocusIn>", self.unbind_delete)
+            e.bind("<FocusOut>", lambda event, x=armName: self.display_current_road_name(event, x))
             #l.bind("<Button-1>",lambda event,label=armName:self.pick_up_window(event,label))
             spinCommand = self.register(lambda w,d,l=armName:self.spinbutton_pressed(w,d,l))
-
+            if self.surveyType == "L":
+                tkinter.Label(frame, text="Lanes").grid(row=2, column=0)
+                s = tkinter.Spinbox(frame, command=(spinCommand, '%W', '%d'), from_=1, to=6, width=2)
+                s.grid(row=2, column=1)
+                s.delete(0, tkinter.END)
+                s.insert(0, self.site["surveys"][self.surveyType]["Arms"][armName]["lanes"])
+                tkinter.Label(frame, text="Primary Dir").grid(row=3, column=0)
+                l = tkinter.Label(frame, text=self.site["surveys"][self.surveyType]["Arms"][armName]["direction"],bg="grey",fg="white")
+                l.grid(row=3, column=1,sticky="nsew")
+                l.bind("<Button-1>",lambda event,l=armName:self.direction_changed(event,l))
             if self.surveyType == "Q":
                 tkinter.Label(frame,text="Lanes").grid(row=2,column=0)
                 s = tkinter.Spinbox(frame,command=(spinCommand,'%W', '%d'),from_=1, to=6,width=2)
@@ -133,9 +145,7 @@ class MapViewer(tkinter.Canvas):
                 lineLength = length_of_line_in_pixels(coords)
                 length = round(self.mapWidthInPixels * lineLength * self.metresPerPixel/self.width,2)
                 tkinter.Label(frame,text=str(length) + "m").grid(row=3,column=0,columnspan=2)
-            e.bind("<Return>", lambda event, x=armName: self.edit_road_name(event, x))
-            e.bind("<FocusIn>", self.unbind_delete)
-            e.bind("<FocusOut>", lambda event, x=armName:self.display_current_road_name(event,x))
+
             item = self.create_window((x, y), window=frame,tags=(armName,"window"),anchor=tkinter.NW)
             print("item is",item)
             frame.update()
@@ -157,6 +167,21 @@ class MapViewer(tkinter.Canvas):
 
     def clear_all(self):
         self.delete(tkinter.ALL)
+
+
+    def direction_changed(self,event,armName):
+        print(event,armName)
+        dirs = ["N","E","S","W"]
+        widget = event.widget
+        currText = widget.cget("text")
+        index = dirs.index(currText)
+        index+=1
+        if index >= len(dirs):
+            index = 0
+        widget.config(text=dirs[index])
+        self.site["surveys"][self.surveyType]["Arms"][armName]["direction"] = dirs[index]
+
+
 
     def lanes_changed(self,varname,elementname,mode):
         print(varname.get(),elementname,mode)
@@ -334,6 +359,7 @@ class MapViewer(tkinter.Canvas):
                 arm["entry widget coords"] = None
                 arm["line vertices"] = [x,y,x+10,y+10]
                 arm["lanes"] = 1
+                arm["direction"] = "N"
                 arm["perpendicular lines"] = []
                 self.currentArmLabel = chr(ord(self.currentArmLabel) + 1)
                 self.site["surveys"][self.surveyType]["Arms"][self.currentSelectedArm] = arm
