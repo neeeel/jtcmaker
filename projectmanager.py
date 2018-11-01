@@ -476,7 +476,7 @@ def export_JTC_to_excel():
     file = filedialog.asksaveasfilename()
     if file == "" or file is None:
         return
-    wb = openpyxl.load_workbook("JTC Template.xlsm",keep_vba=True)
+    wb = openpyxl.load_workbook("Flow Automation Template v2.0.xlsm",keep_vba=True)
 
     sht = wb.get_sheet_by_name("Maps")
 

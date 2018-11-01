@@ -875,6 +875,7 @@ class MainWindow(tkinter.Tk):
         self.load_overview_map()
         self.display_classes()
 
+
     def site_selected(self,event):
         print("selected",event.widget.curselection(),event.widget.get(event.widget.curselection()[0]))
         site = projectmanager.load_selected_site(self.currentSite,event.widget.curselection()[0])
@@ -885,6 +886,7 @@ class MainWindow(tkinter.Tk):
             self.display_site()
         else:
             messagebox.showinfo(message = "Couldnt find site " + event.widget.get(event.widget.curselection()[0]))
+
 
     def display_site(self):
         for child in self.siteDisplayFrame.winfo_children():
